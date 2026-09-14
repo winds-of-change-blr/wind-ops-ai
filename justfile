@@ -44,7 +44,7 @@ pr *ARGS:
         exit 1
     fi
     git push -u origin "$branch"
-    gh pr create --base main --head "$branch" --fill {{ARGS}}
+    gh pr create --base main --head "$branch" --fill --assignee "@me" {{ARGS}}
 
 # Build sdist + wheel into dist/
 build:
