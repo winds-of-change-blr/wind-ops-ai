@@ -34,7 +34,16 @@ check: lint test
 hooks:
     uv run pre-commit run --all-files
 
-# Push the current branch and open a PR into main (requires GitHub CLI: gh)
+# Project board this repo's PRs are tracked on, and its Iteration field id
+# (`gh project field-list 1 --owner winds-of-change-blr` to re-derive if the
+# board is ever recreated).
+project_owner := "winds-of-change-blr"
+project_number := "1"
+project_title := "Snowflake COCO CLI GCC 2026"
+iteration_field_id := "PVTIF_lADOE5mWsc4BjYhOzhiNAXI"
+
+# Push the current branch and open a PR into main (requires GitHub CLI: gh,
+# with the `project` scope: `gh auth refresh -s project`).
 pr *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -44,7 +53,31 @@ pr *ARGS:
         exit 1
     fi
     git push -u origin "$branch"
-    gh pr create --base main --head "$branch" --fill --assignee "@me" {{ARGS}}
+    pr_url="$(gh pr create --base main --head "$branch" --fill --assignee "@me" \
+        --project "{{project_title}}" {{ARGS}})"
+    echo "$pr_url"
+
+    # Best-effort: set the PR's Iteration field to whichever iteration covers
+    # today. Never fails the whole command if the project/field changes shape.
+    iteration_id="$(gh api graphql -f query='
+      query($field: ID!) {
+        node(id: $field) {
+          ... on ProjectV2IterationField {
+            configuration { iterations { id startDate duration } }
+          }
+        }
+      }' -f field="{{iteration_field_id}}" \
+      --jq '.data.node.configuration.iterations' 2>/dev/null \
+      | python3 -c 'import datetime, json, sys; today = datetime.date.today(); hits = [i["id"] for i in json.load(sys.stdin) if datetime.date.fromisoformat(i["startDate"]) <= today < datetime.date.fromisoformat(i["startDate"]) + datetime.timedelta(days=i["duration"])]; print(hits[0] if hits else "")' \
+      || true)"
+    if [ -n "$iteration_id" ]; then
+        gh project item-edit "{{project_number}}" --owner "{{project_owner}}" \
+            --url "$pr_url" \
+            --field-id "{{iteration_field_id}}" \
+            --iteration-id "$iteration_id" >/dev/null
+    else
+        echo "warning: could not resolve the current iteration; set it manually." >&2
+    fi
 
 # Build sdist + wheel into dist/
 build:
