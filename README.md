@@ -63,7 +63,13 @@ chore: bump ruff version
 something is reviewable — a day-1 partial feature is easier to merge (and
 unblock others on) than a day-14 mega-branch. Run `just pr` to push the
 current branch and open a PR into `main` (requires `gh`, and refuses to run
-from `main`/`master` itself).
+from `main`/`master` itself). Reviewers are auto-requested via
+[CODEOWNERS](.github/CODEOWNERS).
+
+**Require 2 approvals before merging.** GitHub branch protection isn't
+available on our plan for this private repo, so this isn't technically
+enforced — it's a team convention (see the [PR template](.github/PULL_REQUEST_TEMPLATE.md)
+checklist). Don't merge your own PR until 2 people have approved it.
 
 ## Project layout
 
