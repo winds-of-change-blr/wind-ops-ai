@@ -1,0 +1,40 @@
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+      # Block direct commits to protected branches; commit on a feature branch instead.
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Enforce the team naming conventions documented in README.md#branching--commits.
+  - repo: local
+    hooks:
+      - id: check-branch-name
+        name: check branch name follows <type>/<initials>/<short-desc>
+        entry: scripts/check-branch-name.sh
+        language: script
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
+      - id: check-commit-msg
+        name: check commit message follows Conventional Commits
+        entry: scripts/check-commit-msg.sh
+        language: script
+        stages: [commit-msg]

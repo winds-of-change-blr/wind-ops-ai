@@ -1,0 +1,76 @@
+[project]
+name = "wind-ops-ai"
+version = "0.1.0"
+description = "Wind operations AI tooling"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Niraj Kumar", email = "nirajkmr007@gmail.com" }]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/winds-of-change-blr/wind-ops-ai"
+Repository = "https://github.com/winds-of-change-blr/wind-ops-ai"
+Issues = "https://github.com/winds-of-change-blr/wind-ops-ai/issues"
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wind_ops_ai"]
+
+# -----------------------------------------------------------------------------
+# Dev dependencies (managed by uv: `uv sync` installs these)
+# -----------------------------------------------------------------------------
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "ruff>=0.6",
+    "pre-commit>=3.8",
+]
+
+# -----------------------------------------------------------------------------
+# Ruff: linter + formatter
+# -----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # flake8-bugbear
+    "A",        # flake8-builtins
+    "C4",       # flake8-comprehensions
+    "SIM",      # flake8-simplify
+    "PTH",      # use pathlib
+    "RUF",      # ruff-specific
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# -----------------------------------------------------------------------------
+# pytest
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra"

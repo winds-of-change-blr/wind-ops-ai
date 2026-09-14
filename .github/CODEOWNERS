@@ -1,0 +1,3 @@
+# Auto-request review from the default owners on every PR.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+* @nirajkmr007 @jeevitha27 @sapna068
