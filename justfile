@@ -34,6 +34,18 @@ check: lint test
 hooks:
     uv run pre-commit run --all-files
 
+# Push the current branch and open a PR into main (requires GitHub CLI: gh)
+pr *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    branch="$(git symbolic-ref --quiet --short HEAD || echo HEAD)"
+    if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+        echo "error: cannot open a PR from '$branch' itself; switch to a feature branch." >&2
+        exit 1
+    fi
+    git push -u origin "$branch"
+    gh pr create --base main --head "$branch" --fill {{ARGS}}
+
 # Build sdist + wheel into dist/
 build:
     uv build

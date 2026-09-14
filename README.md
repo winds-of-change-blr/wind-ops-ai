@@ -7,6 +7,7 @@ Wind operations AI tooling
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (package & environment manager)
 - [just](https://github.com/casey/just) (command runner)
+- [gh](https://cli.github.com/) (GitHub CLI, for `just pr`)
 
 ## Getting started
 
@@ -60,7 +61,9 @@ chore: bump ruff version
 
 **PRs:** small and frequent beats big and late. Open a PR as soon as
 something is reviewable — a day-1 partial feature is easier to merge (and
-unblock others on) than a day-14 mega-branch.
+unblock others on) than a day-14 mega-branch. Run `just pr` to push the
+current branch and open a PR into `main` (requires `gh`, and refuses to run
+from `main`/`master` itself).
 
 ## Project layout
 
