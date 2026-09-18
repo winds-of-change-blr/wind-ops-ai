@@ -1,0 +1,78 @@
+# CoCo Evidence Log
+
+> **Status:** Draft v0.1 · **Owner:** NK · **Last updated:** 2026-09-17
+>
+> [problem-statement.md §2](../../00-hackathon/problem-statement.md#2-snowflake-coco-usage-guidelines)
+> makes CoCo use mandatory across the lifecycle and says judges will look for evidence at every
+> stage. This is that evidence — `E4`. The plan is in
+> [coco-usage-plan.md](../coco-usage-plan.md).
+
+---
+
+## Phases
+
+One folder per phase. **One file per session** — never append to an existing entry.
+
+| Phase | Folder | Status |
+| --- | --- | --- |
+| Planning | [planning/](planning/) | **Complete** — 1 entry |
+| Development | [development/](development/README.md) | Not started |
+| Execution | [execution/](execution/README.md) | Not started |
+| Testing | [testing/](testing/README.md) | Not started |
+
+## Entry format
+
+Copy **[TEMPLATE.md](TEMPLATE.md)** to `<phase>/<NN>-<short-slug>.md`, fill it in, then add a row to
+the [index](#index) below. `<NN>` is a zero-padded sequence within the phase. Rules live in
+[AGENTS.md](../../../AGENTS.md#evidence); the worked example is
+[planning/01-plan-generation.md](planning/01-plan-generation.md).
+
+The seven required sections, in order:
+
+| Section | Required content |
+| --- | --- |
+| **Verifiable identifiers** | **Mandatory.** CoCo session ID, workspace and thread ID, account, user, model, subagent session IDs, plus `REQUEST_ID`s and aggregate token/credit figures from `ACCOUNT_USAGE`. Include the SQL to reproduce them |
+| **Prompt** | Verbatim, or a faithful summary, plus mid-session human instructions |
+| **What CoCo produced** | Files, objects, findings — with paths and, where relevant, line counts |
+| **What a human changed** | **The honest field.** What was corrected, rejected or rewritten, and why |
+| **What CoCo got wrong** | Errors and dead ends, and how they were caught |
+| **Cost** | CoCo token credits **and** warehouse credits, summed |
+| **Traceability** | Branch, commit or PR; files changed; whether any given file was modified |
+
+The "what a human changed" field is the one worth reading. An entry claiming nothing was changed is
+either a trivial task or an unreviewed output, and judges can tell the difference.
+
+## Why identifiers are mandatory
+
+An evidence log a team wrote about itself proves nothing. Snowflake records **every** Cortex Code
+request server-side, so an entry can be tied to telemetry the judges' own platform holds:
+
+| Where | What it proves |
+| --- | --- |
+| `ACCOUNT_USAGE.CORTEX_CODE_DESKTOP_USAGE_HISTORY` | Per-request IDs, timestamps, model, tokens, credits, role — that CoCo was used, when, how much, by whom |
+| `ACCOUNT_USAGE.CORTEX_CODE_CLI_USAGE_HISTORY` | The same for CLI sessions (Official Rules §9 names the CLI specifically) |
+| `ACCOUNT_USAGE.QUERY_HISTORY` | The SQL CoCo actually executed |
+| Local `~/.snowflake/cortex/conversations/<workspace>/<session>.history.jsonl` | The full transcript, including subagent sessions |
+
+The first version of the planning entry had none of this. It was caught by the human asking, and the
+requirement exists so it is not missed again.
+
+## Credit accounting
+
+CoCo's own token usage is **not** in `WAREHOUSE_METERING_HISTORY`. Reporting warehouse credits alone
+under-reported total consumption by roughly ten times during planning. Every cost figure must sum
+**both** sources (`NFR-8`):
+
+```sql
+select 'cortex_code_desktop' as source, sum(token_credits) as credits
+  from snowflake.account_usage.cortex_code_desktop_usage_history
+union all
+select 'warehouse', sum(credits_used)
+  from snowflake.account_usage.warehouse_metering_history;
+```
+
+## Index
+
+| # | Phase | Entry | Date | Produced |
+| --- | --- | --- | --- | --- |
+| 01 | Planning | [01-plan-generation.md](planning/01-plan-generation.md) | 2026-09-17 | The whole of `docs/` — 25 documents. Reference-solution forensics; live capability verification |
