@@ -74,6 +74,7 @@ beat 6 (the baseline comparison).**
 | Likely question | Answer |
 | --- | --- |
 | "Is the prediction real, or a rule?" | Trained classifier, held-out evaluation, and the test requires beating a **trivial single-signal rule** — not just random. **Slide 9 shows the comparison**, and the metric is on screen |
+| **"Why Streamlit and not a real web app?"** | Because we tested the alternative. Snowflake App Runtime returns `APPLICATION SERVICE not available for trial accounts`; plain SPCS containers *are* available and we declined them — under SiS the app runs as the **viewer's** role, so least privilege is a property of the deployment rather than of code we would have had to write and then ask you to trust. [`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md) |
 | "How do I know it isn't hiding real problems?" | A blocking test asserts no seeded real failure was ever suppressed or dismissed. Zero tolerance, and the build fails if it hits |
 | "Could the agent book something wrong?" | It holds no write privilege anywhere. Suggestions come only from engine-produced windows, and a human approves |
 | "Is this real-time?" | One incremental path with a declared target lag, and the refresh time is on screen. The rest is batch, and we say so |
@@ -110,7 +111,7 @@ Eleven slides. Judges read decks at speed, so one idea per slide.
 | 12 | Turbine OEE | Our adaptation, declared as such, with what each factor catches |
 | 13 | CoCo across the lifecycle | Four phases with **verifiable session IDs**; four reusable skills; the CLAIMED/DECLINED table |
 | 14 | **Results** | The generated summary, led by the **aggregate outcome sentence** |
-| 15 | Honesty slide | What we do **not** claim, and what we deliberately declined to build — `W13` and `W15` with their reasons |
+| 15 | Honesty slide | What we do **not** claim, and what we deliberately declined to build — `W13`, `W15` and **the containerised web app** (`ADR-0020`), each with its reason |
 
 Slide order follows [evaluation-traceability.md](evaluation-traceability.md), so each criterion is
 touched and the 40%-weighted one is touched four times (slides 7, 8, 9, 14).

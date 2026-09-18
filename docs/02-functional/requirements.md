@@ -1,6 +1,10 @@
 # Requirements
 
-> **Status:** Draft v0.4 · **Owner:** JP · **Last updated:** 2026-09-18
+> **Status:** Draft v0.5 · **Owner:** JP · **Last updated:** 2026-09-18
+>
+> **v0.5 adds** `NFR-21` (connection from configuration, not a session token) and `NFR-22` (every visual
+> degrades to something carrying its number) — both consequences of [`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md),
+> which settled the app platform after testing Snowflake App Runtime in-account.
 >
 > **v0.4 adds** `FR-97`…`FR-99`: the baseline comparison shown rather than only tested, a generated
 > aggregate outcome statement, and demonstrable suppression guards. Gating tests go from 17 to **18**.
@@ -241,14 +245,16 @@ Priority column is the [scope](scope.md) item, which carries the MoSCoW level.
 | `NFR-18` | **Freshness is visible.** Any surface showing derived output — scores, suggestions, the digest, noise metrics — displays when it was last refreshed. A silently stale suggestion is the same class of defect as a toast that lies | `M11` | `P-3` | `CMP-18`, `CMP-20` | `T-77` |
 | `NFR-19` | **Automation runs least-privilege.** The scheduled run executes as `WOA_SCHEDULER`, never as `ACCOUNTADMIN` and never as a human's default role. Automations inherit their creator's default role, so the object must be created from a session whose default is `WOA_SCHEDULER` | `M11` | `P-6` | `CMP-20`, `CMP-15` | `T-78` |
 | `NFR-20` | **The submission stands alone.** A stranger can clone the repo, follow the `README`, and reach a working system without asking us anything. No step depends on knowledge only we hold | `M13` | NK | `CMP-15` | `T-89`, `T-52` |
+| `NFR-21` | **The app takes its connection from configuration, never from a Snowflake-hosted session token.** This is what keeps `streamlit run` locally a working demo-day fallback, and it is the exact mistake that made the reference solution runnable in only one place | `M8` | `P-7` | `CMP-14` | `T-53`, `T-97` |
+| `NFR-22` | **Every app visual degrades to something that still carries its number.** The funnel falls back to a stacked bar, the driver panel to a table. Chosen because Streamlit's ceiling is now a decision we own ([`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md), `R-29`), not a constraint we inherited | `M8` | `P-2`, `P-7` | `CMP-14` | `T-98` |
 
 ## 4. Requirement coverage
 
 | Dimension | Check | Result |
 | --- | --- | --- |
 | Functional requirements | 99 | — |
-| Non-functional requirements | 20 | — |
-| Every FR/NFR has an ID, priority, persona, component and ≥1 test | 119 of 119 | **Pass** |
+| Non-functional requirements | 22 | — |
+| Every FR/NFR has an ID, priority, persona, component and ≥1 test | 121 of 121 | **Pass** |
 | Every persona `P-1`…`P-10` is named by ≥1 requirement | all 10 | **Pass** |
 | Every component `CMP-1`…`CMP-20` is named by ≥1 requirement | all 20 | **Pass** |
 | Every Must scope item has ≥1 requirement | `M1`…`M13` | **Pass** |

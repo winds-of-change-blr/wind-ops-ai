@@ -142,6 +142,6 @@ are *live* fallbacks, not a video.
 
 | ID | Question | Owner |
 | --- | --- | --- |
-| `Q-39` | Can we create a Streamlit object on this trial account? If not, the app is local-only and the demo runs from a laptop. Supersedes part of `Q-12` | NK |
+| `Q-39` | ~~Can we create a Streamlit object on this trial account?~~ **Closed 2026-09-18 — yes.** And the wider question is answered: **Snowflake App Runtime is blocked on trial accounts**, so the app is Streamlit by decision, not by default ([`ADR-0020`](decisions/adr-0020-app-platform.md)) | NK |
 | `Q-40` | Do we set an account resource monitor, given only one account and shared credits? Recommendation: yes, with notify-only at first | NK |
 | `Q-41` | Who holds the elevated credential for the one-time setup step, and where does it live? Recommendation: NK, in the OS keychain, never in git | NK |

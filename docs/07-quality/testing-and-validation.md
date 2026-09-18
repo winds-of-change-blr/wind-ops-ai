@@ -1,6 +1,9 @@
 # Testing & Validation
 
-> **Status:** Draft v0.4 · **Owner:** JP · **Last updated:** 2026-09-18
+> **Status:** Draft v0.5 · **Owner:** JP · **Last updated:** 2026-09-18
+>
+> **v0.5 adds** `T-97` (the app runs outside Snowflake) and `T-98` (every visual degrades and keeps its
+> number) — from [`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md).
 >
 > **v0.4 adds** `T-94`…`T-96` — the baseline comparison displayed, the aggregate outcome generated,
 > and the guards demonstrable. Gating tests go from 17 to **18**.
@@ -120,6 +123,8 @@ worse than one it rejects, because the planner would never know their instructio
 | **`T-94`** | **The displayed baseline comparison reconciles to the recorded evaluation run** — counts flagged by the trivial rule, counts flagged by the model, and how many of each actually failed | ✅ |
 | `T-95` | The aggregate outcome statement is **generated** and reconciles to `OPS` and `MET_LD_EXPOSURE` — failures flagged of failures seeded, median lead time, LD exposure identified | ✅ |
 | `T-96` | **The guard refusal is reachable from the UI**: attempting to suppress an elevated-risk asset or a safety-critical code produces a visible refusal with its reason, and the attempt is logged | ✅ |
+| `T-97` | **The app runs unchanged outside Snowflake.** `streamlit run` against the same account works from a laptop — proving no dependency on a Snowflake-hosted session token (`NFR-21`) | — |
+| `T-98` | **Every app visual has a working degraded form** — funnel to stacked bar, drivers to table — and the number survives the degradation (`NFR-22`) | — |
 
 `T-94` is gating for the same reason as `T-86` and `T-87`: it is a number shown to a judge, and a
 number that persuades must be provably correct. It also protects against the subtler failure — choosing
@@ -244,7 +249,7 @@ idempotent — and that is what "judges can run this" actually requires.
 | **G2 — the model is real** | `T-10`, `T-14`…`T-19`, **`T-94`** | A trained model beats both baselines, carries drivers, **and the comparison is displayable** |
 | **G3 — the numbers are trustworthy** | `T-20`…`T-25` | Metrics reconcile to hand-worked answers; OEE identity holds |
 | **G4 — action is safe** | `T-29`, `T-33`…`T-35`, `T-47`, `T-48`, **`T-60`**, **`T-71`**, **`T-74`**, **`T-76`** | Nothing writes without approval; nothing destructive is reachable; **no real failure is suppressed**; no plan is invented; no automation applies |
-| **G5 — demo-ready and submittable** | `T-26`, `T-39`, `T-45`, `T-52`, `T-53`, `T-70`, `T-77`, `T-86`, `T-87`, `T-89`, `T-90`, `T-92`, `T-93`, **`T-95`**, **`T-96`** | End to end, degradable, reproducible; the on-screen numbers provably correct; the guards demonstrable; **and a stranger can run it from the README** |
+| **G5 — demo-ready and submittable** | `T-26`, `T-39`, `T-45`, `T-52`, `T-53`, `T-70`, `T-77`, `T-86`, `T-87`, `T-89`, `T-90`, `T-92`, `T-93`, **`T-95`**, **`T-96`**, `T-97`, `T-98` | End to end, degradable, reproducible; the on-screen numbers provably correct; the guards demonstrable; **and a stranger can run it from the README** |
 
 **G1 blocks everything.** If `T-10` fails, work stops and the generator gets fixed — building a
 dashboard over an unlearnable dataset is how the reference solution ended up where it did.

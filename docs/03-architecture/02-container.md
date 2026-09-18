@@ -20,7 +20,7 @@
 | `ACTION` | Tables, stored procedures | `CMP-10` | **App only, with approval** | App, audit queries |
 | `DOCS` | Stage, parsed tables, Cortex Search service | `CMP-11` | Document pipeline | Agent |
 | `AGENT` | Cortex Agent + tool definitions | `CMP-13` | — | App, Snowflake Intelligence |
-| `APP` | Streamlit in Snowflake | `CMP-14` | — | Humans |
+| `APP` | Streamlit in Snowflake ([`ADR-0020`](decisions/adr-0020-app-platform.md)) | `CMP-14` | — | Humans |
 | `OPS` | Tables, views | `CMP-16` | Pipelines, jobs | `P-6`, cost reporting |
 | `GEN` | Snowpark Python procedures | `CMP-1` | — | `RAW` |
 | — | Roles, grants, secrets | `CMP-15` | Setup | — |
@@ -157,7 +157,7 @@ Required by `NFR-7`. Anything the core demo depends on has a written fallback.
 | `ACTION` | Audit unavailable | **Block the write.** No degraded mode by design |
 | `DOCS` | Search service unavailable | Answer from parsed text with a document-level citation, no section anchor |
 | `AGENT` | `claude-sonnet-4-5` unavailable, or cross-region inference disabled | Switch to an in-region model. Verified available: `llama3.1-8b`. Answer quality drops; grounding rules unchanged |
-| `APP` | Streamlit in Snowflake unavailable (`Q-12`) | Run Streamlit locally against the same account. Same code, different host |
+| `APP` | Streamlit in Snowflake unavailable | Run Streamlit locally against the same account. Same code, different host — which is why the app takes its connection from configuration and never from a Snowflake session token. **Object creation is verified working** (`Q-39` closed), so this is a genuine fallback rather than the expected path. A containerised web app is **not** a fallback: `APPLICATION SERVICE` is blocked on trial accounts ([`ADR-0020`](decisions/adr-0020-app-platform.md)) |
 | `OPS` | — | Manual queries, screenshotted |
 
 The `AGENT` row is the one to rehearse: `claude-sonnet-4-5` resolves **only** via cross-region

@@ -104,7 +104,7 @@ Gates are defined in [testing-and-validation.md §9](../07-quality/testing-and-v
 
 | Day | Date | Focus | Checkpoint |
 | --- | --- | --- | --- |
-| D1 | Fri 18 Sep | Setup scripts, roles, schemas. **Name `WOA_SCHEDULER`.** **Test Streamlit object creation — closes `Q-39`.** **Draft the 14-slide deck as a specification.** Generator: fleet + operating context | Environment reproducible; `T-52` runs; `ADR-0012` closed; **deck exists** |
+| D1 | Fri 18 Sep | Setup scripts, roles, schemas. **Name `WOA_SCHEDULER`.** ~~Test Streamlit object creation~~ — **`Q-39` closed early, verified working**. **Draft the 15-slide deck as a specification.** Generator: fleet + operating context | Environment reproducible; `T-52` runs; **`ADR-0012` and `ADR-0020` both closed**; **deck exists** |
 | D2 | Sat 19 Sep | **Spike: matched-band feature join** (`Q-36`). Generator: damage model. Alarm sources begin. **Book a 20-minute call with a wind O&M or industrial-monitoring practitioner** to sanity-check `J-6` and `J-3` (`Q-90`) | Banding demonstrably removes load effects (`T-3`) |
 | D3 | Sun 20 Sep | Generator: signal response, failure events, **four alarm streams + seeded grid dip, code cascade, chattering**. Landing tables | Degradation visible before failures (`T-8`); each alarm source populated |
 | D4 | Mon 21 Sep | Generator: consequences — alarms, work orders, stock, genealogy. **First learnability test** | **`T-10` — the decision point** |
@@ -210,7 +210,7 @@ feature.
 | ID | Dependency | Needed by | Risk if late |
 | --- | --- | --- | --- |
 | `DEP-1` | 4th member confirmed and registered | D13 (registration closes) | `EP-8` falls to NK; app collapses to one page |
-| `DEP-2` | `Q-39` — Streamlit object creation on trial account | D13 | App runs locally instead; demo from a laptop |
+| `DEP-2` | ~~`Q-39` — Streamlit object creation on trial account~~ | — | **Closed 2026-09-18** — verified working, no fallback needed |
 | `DEP-3` | Cross-region inference stays enabled | D11 | Fallback to `llama3.1-8b` |
 | `DEP-8` | **`WOA_SCHEDULER` named and its default role set** | **D1** | Automation cannot be created without breaking `NFR-3` |
 | `DEP-9` | **MCP target workspace and credential** | D13 | `FR-84` cut; it is first in the cut order anyway |

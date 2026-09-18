@@ -168,7 +168,7 @@ written on D15 from `OPS`, not composed by hand.
 
 | Criterion | Verdict | The gap |
 | --- | --- | --- |
-| `E8` Design | **Amber** | `ADR-0012` still Open (`Q-39`). Visual appeal is our thinnest dimension; the funnel is the mitigation |
+| `E8` Design | **Amber** | Visual appeal is our thinnest dimension and the platform ceiling is now a *chosen* constraint ([`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md), `R-29`). The funnel and the one reusable evidence panel are the mitigation |
 | `E9` Execution | **Amber-green** | Depends on the results summary actually being generated (`T-92`), the **aggregate outcome sentence reconciling** (`T-95`), and the **cold external scoring run on D14** (`US-97`) surfacing gaps while there is still a day to fix them |
 | `E5` Ingenuity | **Green** | Four skills, automation, MCP, four surfaces, one honest decline |
 | `E4` Lifecycle | **Green** | Planning complete with verifiable IDs; three phases pending by definition |

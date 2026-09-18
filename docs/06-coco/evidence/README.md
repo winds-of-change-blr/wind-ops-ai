@@ -15,7 +15,7 @@ One folder per phase. **One file per session** — never append to an existing e
 
 | Phase | Folder | Status |
 | --- | --- | --- |
-| Planning | [planning/](planning/) | **Complete** — 1 entry |
+| Planning | [planning/](planning/) | **Complete** — 2 entries |
 | Development | [development/](development/README.md) | Not started |
 | Execution | [execution/](execution/README.md) | Not started |
 | Testing | [testing/](testing/README.md) | Not started |
@@ -26,6 +26,13 @@ Copy **[TEMPLATE.md](TEMPLATE.md)** to `<phase>/<NN>-<short-slug>.md`, fill it i
 the [index](#index) below. `<NN>` is a zero-padded sequence within the phase. Rules live in
 [AGENTS.md](../../../AGENTS.md#evidence); the worked example is
 [planning/01-plan-generation.md](planning/01-plan-generation.md).
+
+## Index
+
+| Entry | Phase | What it records |
+| --- | --- | --- |
+| [planning/01-plan-generation.md](planning/01-plan-generation.md) | Planning | Generating the full plan — 46 documents, the reference-solution forensics, the cost under-report CoCo made and the human caught |
+| [planning/02-app-platform-investigation.md](planning/02-app-platform-investigation.md) | Planning | Testing Snowflake App Runtime in-account: blocked on trial accounts, plain SPCS available, Streamlit verified. Outcome [`ADR-0020`](../../03-architecture/decisions/adr-0020-app-platform.md) |
 
 The seven required sections, in order:
 

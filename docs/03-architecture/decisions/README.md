@@ -1,6 +1,9 @@
 # Architecture Decision Records
 
-> **Status:** Draft v0.3 · **Owner:** NK · **Last updated:** 2026-09-18
+> **Status:** Draft v0.4 · **Owner:** NK · **Last updated:** 2026-09-18
+>
+> **v0.4** adds [`ADR-0020`](adr-0020-app-platform.md) (app platform, after testing Snowflake App
+> Runtime in-account) and closes `ADR-0012`.
 >
 > **Every decision, made or pending, is in the table below.** Nothing is buried in prose elsewhere.
 > The most consequential eight have their own file; the rest are recorded here in full and promoted
@@ -26,7 +29,7 @@
 | `ADR-0009` | [Native semantic view as the NL interface](#adr-0009--native-semantic-view-as-the-nl-interface) | Accepted | JP | — |
 | `ADR-0010` | [Document pipeline: parse then search service](#adr-0010--document-pipeline) | Accepted | JP | — |
 | `ADR-0011` | [Incremental pipeline via dynamic tables](#adr-0011--incremental-pipeline-via-dynamic-tables) | **Accepted, narrowed** — one path | JP | — |
-| `ADR-0012` | [Front end: Streamlit in Snowflake, local fallback](#adr-0012--front-end) | **Open** — blocked on `Q-39` | NK | — |
+| `ADR-0012` | [Front end: Streamlit in Snowflake, local fallback](#adr-0012--front-end) | **Resolved** — see `ADR-0020` | NK | — |
 | `ADR-0013` | [Orchestration model choice and fallback](#adr-0013--orchestration-model-and-fallback) | Accepted | SA | — |
 | `ADR-0014` | [One classifier with component class as a feature](#adr-0014--model-granularity) | **Proposed** — `Q-15`, `Q-30` | SA | — |
 | `ADR-0015` | [Reuse from the reference solution](#adr-0015--what-we-reuse-from-the-reference-solution) | Accepted | NK | — |
@@ -34,9 +37,11 @@
 | `ADR-0017` | [Alarm classification policy](adr-0017-alarm-classification.md) | Accepted | NK | ✓ |
 | `ADR-0018` | [The scheduling suggestion boundary](adr-0018-scheduling-suggestion-boundary.md) | Accepted | NK | ✓ |
 | `ADR-0019` | [Automation and notification split](adr-0019-automation-and-notification.md) | Accepted | NK | ✓ |
+| `ADR-0020` | [App platform: Streamlit in Snowflake, not a container](adr-0020-app-platform.md) | Accepted | NK | ✓ |
 
-Four decisions are not yet settled and two of those block work: `ADR-0012` blocks the app
-(`Q-39`), and `ADR-0014` blocks feature engineering (`Q-30`).
+Three decisions are not yet settled and one of those blocks work: `ADR-0014` blocks feature
+engineering (`Q-30`). `ADR-0012` is resolved — Streamlit object creation was verified on this account
+and the wider platform question is settled in [`ADR-0020`](adr-0020-app-platform.md).
 
 ---
 
@@ -55,7 +60,9 @@ verified working in-account.
 
 **Consequences.** Simple deployment and a clean security story. We are exposed to any in-region
 feature gap, which [02-container.md §5](../02-container.md#5-degraded-modes-per-container) covers
-per container. Trial-account limits are a real constraint (`Q-39`).
+per container. **Trial-account limits are a real and now-measured constraint:** `APPLICATION SERVICE`
+(Snowflake App Runtime) is blocked outright, which closed off the containerised-web-app option
+([`ADR-0020`](adr-0020-app-platform.md)).
 
 ## ADR-0007 — ML approach
 
@@ -154,14 +161,16 @@ artefact** — `R-27` tracks this.
 
 ## ADR-0012 — Front end
 
-**Status:** **Open**, blocked on `Q-39` · **Context:** `M8` needs a UI. Streamlit-in-Snowflake
-object creation is **not yet verified** on this trial account.
+**Status:** **Resolved** · superseded in scope by [`ADR-0020`](adr-0020-app-platform.md) ·
+**Context:** `M8` needs a UI. Streamlit-in-Snowflake object creation is now **verified working** on this
+trial account (`Q-39` closed).
 
-**Leaning.** Streamlit in Snowflake if available, because it keeps everything in-account and needs
-no separate hosting. Otherwise Streamlit run locally against the same account — identical code, and
-the demo runs from a laptop.
+**Decision.** Streamlit in Snowflake. The wider question this ADR did not ask — *could we build a
+proper web app instead?* — is answered in `ADR-0020`: Snowflake App Runtime is blocked on trial
+accounts, plain SPCS containers are available, and we declined them for governance reasons as much as
+scope.
 
-**Consequences either way.** The app must not depend on a Snowflake-hosted session token for
+**Consequence that still binds.** The app must not depend on a Snowflake-hosted session token for
 authentication, or the local fallback breaks. This is exactly how the reference solution became
 SiS-only: it read an OAuth token from `/snowflake/session/token`, so it cannot run anywhere else.
 Our app must take its connection from configuration.
@@ -243,6 +252,6 @@ Per the requirement that every open decision is visible in one list.
 | `ADR-0003` | Metric layer | Does the team accept the profile's Turbine OEE proposal as-is? |
 | `ADR-0007` | Model build | Confirm two-signal approach; confirm drivers-as-importances is acceptable |
 | `ADR-0011` | Pipeline | **Resolved** — narrowed to one path (`M12`), accepted |
-| `ADR-0012` | **The app** | `Q-39` — can we create a Streamlit object on this trial account? |
+| `ADR-0012` | **The app** | **Resolved** — `Q-39` closed, Streamlit verified; platform settled in `ADR-0020` |
 | `ADR-0014` | Features | `Q-30` — four component classes, one model? |
 | `ADR-0016` | Generation | `Q-27` — 6 months, plus a failure-rich window? |

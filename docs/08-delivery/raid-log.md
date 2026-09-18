@@ -1,6 +1,9 @@
 # RAID Log
 
-> **Status:** Draft v0.4 · **Owner:** NK · **Last updated:** 2026-09-18
+> **Status:** Draft v0.5 · **Owner:** NK · **Last updated:** 2026-09-18
+>
+> **v0.5** closes `R-7`, `DEP-2` and `Q-39` (Streamlit verified in-account), answers `Q-12` in full,
+> and adds `R-29` (Streamlit's ceiling, now a chosen constraint) and `Q-94` (revisit SAR if paid).
 >
 > **v0.4 adds** `A-20` (baseline-rule integrity) and `Q-90`…`Q-93` (practitioner call, baseline signal,
 > aggregate figure definition, cold external scorer).
@@ -26,7 +29,8 @@ Impact × likelihood, both High / Medium / Low.
 | `R-4` | **Model no better than a trivial threshold rule** — we would be shipping a rule with a nicer name | **H** | M | `T-10`'s second baseline. If it fails, tune noise or improve features; do not relabel | SA |
 | `R-5` | **4th member never joins.** `EP-8` unowned; registration closes 30 Sep | M | **H** | Plan assumes three. `EP-8` falls to NK, app collapses to one page | NK |
 | `R-6` | **Credits exhausted.** $400 shared. **CoCo token spend is the largest consumer so far** — planning alone cost ≈16.75 credits, 90% of it tokens | H | M | Sum both sources when reporting; 6-month window, `XSMALL`, `AUTO_SUSPEND=60`, resource monitor, report at each $100 band. Keep exploratory chat sessions bounded | NK |
-| `R-7` | **Streamlit unavailable on trial account** (`Q-39`) | M | M | Local Streamlit against the same account. App must never depend on a Snowflake session token | NK |
+| `R-7` | ~~**Streamlit unavailable on trial account**~~ (`Q-39`) | — | — | **Closed 2026-09-18.** `CREATE STREAMLIT` verified working on this account. See [`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md) | NK |
+| `R-29` | **Streamlit's layout and interactivity ceiling weakens `E8`** — visual appeal is our thinnest dimension, and we have now *chosen* this constraint rather than inherited it | M | M | The one reusable evidence panel (fewer bespoke layouts, not more); the funnel via `st.components` HTML or Vega-Lite, degrading to a stacked bar that still carries the number; precomputed engine tables so no widget triggers expensive recompute | NK |
 | `R-8` | **Cross-region inference disabled**, so `claude-sonnet-4-5` stops resolving | M | L | `llama3.1-8b` verified in-region. Rehearsed in the [runbook](../03-architecture/deployment.md#7-demo-day-runbook) | SA |
 | `R-9` | **Late submission.** Uploading near the deadline; the organiser carries no responsibility | **H** | M | Submit D15 (2 Oct), keep D16–17 as buffer with no planned work | NK |
 | `R-10` | **Metrics disagree** across app, semantic view and agent — the most credibility-destroying defect available | H | M | One definition per metric; `T-24` parity test | JP |
@@ -97,7 +101,7 @@ Live problems, as opposed to risks.
 | ID | Dependency | Needed by | Fallback |
 | --- | --- | --- | --- |
 | `DEP-1` | 4th member confirmed **and registered** | 30 Sep (D13) | Three-person plan; `EP-8` to NK |
-| `DEP-2` | Streamlit object creation on this trial account (`Q-39`) | D12 | Local Streamlit, same account |
+| `DEP-2` | ~~Streamlit object creation on this trial account~~ (`Q-39`) | — | **Closed 2026-09-18** — verified working |
 | `DEP-3` | `CORTEX_ENABLED_CROSS_REGION` stays `ANY_REGION` | D11 | `llama3.1-8b` in-region |
 | `DEP-4` | $400 credit not exhausted | D15 | Reduce volume; suspend everything idle |
 | `DEP-5` | Verified platform features remain available | D9 | Per-container degraded modes |
@@ -117,7 +121,8 @@ Seventy-two, grouped by what they block. **Blocking** means work stops without a
 | `Q-5` | Who is the 4th member, and what do they own? | NK | 30 Sep |
 | `Q-27` | History window — 6 months plus a failure-rich period? ([ADR-0016](../03-architecture/decisions/README.md#adr-0016--history-window)) | SA | D1 |
 | `Q-30` | Which component classes get a model? ([ADR-0014](../03-architecture/decisions/README.md#adr-0014--model-granularity)) | SA | D2 |
-| `Q-39` | Can we create a Streamlit object on this trial account? ([ADR-0012](../03-architecture/decisions/README.md#adr-0012--front-end)) | NK | D13 |
+| `Q-39` | ~~Can we create a Streamlit object on this trial account?~~ | **Closed 2026-09-18 — yes, verified.** Platform question settled in [`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md) | — |
+| `Q-94` | If the account becomes paid, do we revisit Snowflake App Runtime? Recommendation: **not during the hackathon, and not after D2.** Recorded so the decision is deliberate rather than forgotten | NK |
 | `Q-78` | **`WOA_SCHEDULER`: confirm the role name and that its default role is set correctly** | NK | **D1** |
 | `Q-79` | **MCP target — which workspace, and who holds the credential?** | NK | D13 |
 
@@ -130,7 +135,7 @@ Seventy-two, grouped by what they block. **Blocking** means work stops without a
 | `Q-8` | Where are skills published? | Kept in-repo for now; published later |
 | `Q-9` | Correct `terms-and-conditions.md`? | **No.** `problem-statement.md` takes priority. See `I-1` |
 | `Q-7` | Account edition? | **Parked.** Not readable; design to the lowest capability set. See `I-3` |
-| `Q-12` | Streamlit and compute pool on trial? | Partially — system compute pools exist; Streamlit superseded by `Q-39` |
+| `Q-12` | Streamlit and compute pool on trial? | **Fully answered 2026-09-18.** Streamlit ✓; compute pools ✓ (created `CPU_X64_XS`); plain SPCS `CREATE SERVICE` ✓; **`APPLICATION SERVICE` ✗ — blocked on trial accounts**, so Snowflake App Runtime is unavailable to us ([`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md)) |
 | `Q-24` | Cut order accepted? | **Yes**, and superseded by the v0.2 cut order after `M9`–`M11` were promoted |
 | `Q-64` | Ownership split accepted? | **Yes**, with `EP-11` and `EP-12` added to NK and `EP-5` to JP |
 | `Q-35` | Do the hour estimates survive contact with the team? | **Moot.** Estimates removed; the constraint is review and decision load |
@@ -255,7 +260,7 @@ Seventy-two, grouped by what they block. **Blocking** means work stops without a
 | When | What |
 | --- | --- |
 | Daily standup | New issues; blocking questions; cut triggers |
-| **D1** | **`WOA_SCHEDULER` decision** (`Q-78`, `DEP-8`); **Streamlit test** (`Q-39`); **deck drafted as a specification** |
+| **D1** | **`WOA_SCHEDULER` decision** (`Q-78`, `DEP-8`); ~~Streamlit test~~ (**`Q-39` closed early**); **deck drafted as a specification** |
 | **Any day** | **A deck slide that cannot be filled marks its feature as cut, that day** |
 | D6, D9, D12 | Gate review — pass/fail, then apply the cut trigger if failed |
 | **D11** | **Schedule suggestion quality review** — the highest review-load item (`R-21`) |
