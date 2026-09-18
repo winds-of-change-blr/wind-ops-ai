@@ -16,7 +16,10 @@ just bootstrap     # create the virtualenv, install deps, install git hooks
 just check         # lint + format-check + tests
 ```
 
-Run `just` with no arguments to list every command.
+Run `just` with no arguments to list every command, grouped.
+
+**Picking up work on this project?** Read [CONTRIBUTING.md](CONTRIBUTING.md) — it is the whole
+workflow on one page, with CoCo prompts you can paste. Then run `just state`.
 
 ## Development
 
