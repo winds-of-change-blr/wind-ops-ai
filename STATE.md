@@ -1,7 +1,7 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-09-18 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
-> **Plan day:** D0 (planning complete, build not started) · **Branch:** `docs/nk/hackathon-planning`
+> **Last updated:** 2026-09-21 · **by:** JP · **CoCo session:** `34ca9e37-5241-44c0-b632-53e21e2c8e96`
+> **Plan day:** D1 (foundation build started) · **Branch:** `feat/jp/deploy-foundation`
 
 **This file holds status, never intent.** Intent lives in `docs/`. If the two disagree: `docs/` wins on
 *what we are building*, this file wins on *how far we got*. Overwrite sections in place — never append.
@@ -30,7 +30,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Nothing in flight |
+| JP | `US-44`, `US-45` · `T-50`, `T-52` | `feat/jp/deploy-foundation` | 2026-09-21 | `00_setup` + `90_teardown` behind `just deploy-foundation`. Also re-verifying §5 against the new account |
 
 ## 3. Next actions, in order
 
@@ -61,19 +61,24 @@ action*; the RAID log holds the rest.
 **The section git cannot tell you, and the one that wastes the most time when stale.** Update it
 whenever you create or drop an object.
 
+> **The account changed on 2026-09-21.** We are now on `JKDRJBB-MW27072`; the planning-phase
+> account `BGTCHIX-UZ86048` is gone. Everything previously "verified as possible" was proven
+> against that account and had to be re-proven. Recorded in §7.
+
 | Thing | State |
 | --- | --- |
 | Databases | **None.** `WIND_OPS_AI` not created |
 | Schemas | — |
 | Roles / warehouses | **None** of the `WOA_*` roles or warehouses exist |
 | Models, semantic views, search services, agents | **None** |
-| Verified as *possible* in this account | `SNOWFLAKE.ML.CLASSIFICATION`, `ANOMALY_DETECTION`, `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `AI_PARSE_DOCUMENT`, `AI_EXTRACT`, `CREATE AGENT`, `CREATE DYNAMIC TABLE`, `AI_COMPLETE('claude-sonnet-4-5')`, `AI_COMPLETE('llama3.1-8b')`, **`CREATE STREAMLIT`**, **`CREATE COMPUTE POOL`** (`CPU_X64_XS`, reached `STARTING`), **`CREATE SERVICE`** (plain SPCS, public endpoint — spec accepted), **`CREATE ARTIFACT REPOSITORY TYPE = APPLICATION`**, **`CREATE IMAGE REPOSITORY`** |
-| Verified as **not** working | `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` (legacy names, rejected). **`CREATE APPLICATION SERVICE` — `Snowpark Container Services feature APPLICATION SERVICE not available for trial accounts`, so Snowflake App Runtime is unavailable to us** ([`ADR-0020`](docs/03-architecture/decisions/adr-0020-app-platform.md)) |
+| Re-verified as *possible* on `JKDRJBB-MW27072` (2026-09-21) | `AI_COMPLETE('claude-sonnet-4-5')`, `AI_COMPLETE('llama3.1-8b')`, `SNOWFLAKE.CORTEX.COMPLETE` for both, `AI_EXTRACT`, `SNOWFLAKE.ML.CLASSIFICATION`, `ANOMALY_DETECTION`, `DOCUMENT_INTELLIGENCE`, `FORECAST`, `TOP_INSIGHTS`, `CREATE COMPUTE POOL` (`CPU_X64_XS`, compiles). Account params confirmed: `CORTEX_ENABLED_CROSS_REGION = ANY_REGION`, `ENABLE_CORTEX_ANALYST = true` |
+| **Carried over from the old account — NOT yet re-proven** | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE DYNAMIC TABLE`, `CREATE AGENT`, `CREATE STREAMLIT`, `AI_PARSE_DOCUMENT`, `CREATE SERVICE`, `CREATE ARTIFACT REPOSITORY`, `CREATE IMAGE REPOSITORY`. Each needs a database to exist first — they get proven by `just verify` once `deploy-foundation` lands |
+| Verified as **not** working (old account; assumed to still hold) | `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` (legacy names, rejected). **`CREATE APPLICATION SERVICE` — not available for trial accounts, so Snowflake App Runtime is unavailable to us** ([`ADR-0020`](docs/03-architecture/decisions/adr-0020-app-platform.md)). The re-probe on the new account failed on *syntax*, not on the feature gate, so this is **inconclusive here** — but `ADR-0020` chose SiS deliberately, so nothing is blocked |
 | Untested | Notification integrations; MCP connector; `st.components` HTML inside SiS |
-| Not installed locally | **`snow` CLI** — needed for `snow app`, and generally useful. Not a blocker while we are on SiS |
+| Other | `SNOWFLAKE_INTELLIGENCE` database does **not** exist — the agent needs `SNOWFLAKE_INTELLIGENCE.AGENTS` (platform-mandated, [`04-code.md`](docs/03-architecture/04-code.md) §2) |
 
-Account `BGTCHIX-UZ86048` · region `AZURE_CENTRALINDIA` · trial, **$400 budget**.
-Naming authority: [`04-code.md`](docs/03-architecture/04-code.md).
+Account `JKDRJBB-MW27072` (locator `EB28292`) · region `AZURE_CENTRALINDIA` · version 10.33.101 ·
+trial, **$400 budget**. Naming authority: [`04-code.md`](docs/03-architecture/04-code.md).
 
 **Every object here was created by a `just` recipe** — see
 [AGENTS.md · Deployment](AGENTS.md#deployment). If something exists in the account that no recipe
@@ -81,13 +86,18 @@ creates, that is a defect: record it in §7 and fold it into a recipe.
 
 ## 6. Budget
 
+Figures below are for **`JKDRJBB-MW27072`** and reset with the account move; the 51.18 credits spent
+planning were charged to `BGTCHIX-UZ86048` and are not recoverable here.
+
 | Source | Credits |
 | --- | --- |
-| CoCo token credits (`CORTEX_CODE_DESKTOP_USAGE_HISTORY`) | 48.61 |
-| Warehouse (`WAREHOUSE_METERING_HISTORY`) | 2.57 |
-| **Total spent** | **≈ 51.18** |
+| CoCo token credits (`CORTEX_CODE_DESKTOP_USAGE_HISTORY.TOKEN_CREDITS`) | 3.28 |
+| Warehouse (`WAREHOUSE_METERING_HISTORY.CREDITS_USED`) | 1.10 |
+| **Total spent** | **≈ 4.38** |
 
 **Always sum both** — warehouse metering alone under-reported planning by ~10×. Alert NK at each $100.
+`ACCOUNT_USAGE` lags by up to three hours, so the current session is not yet reflected. Note the
+column is `TOKEN_CREDITS`, not `CREDITS`.
 
 ## 7. Deviations from the plan
 
@@ -96,12 +106,14 @@ ADR or RAID reference, that is a defect.
 
 | What changed | Recorded in |
 | --- | --- |
-| — | — |
+| **Account moved** from `BGTCHIX-UZ86048` to `JKDRJBB-MW27072` (same region). Invalidates the planning-phase capability evidence and resets the credit budget | §5 and §6 above; [`deployment.md`](docs/03-architecture/deployment.md) §1. **Needs a RAID entry — `Q-41` (who holds the elevated credential) is now open against a different account** |
 
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/planning/02-app-platform-investigation.md`](docs/06-coco/evidence/planning/02-app-platform-investigation.md)
-— app platform investigation, outcome [`ADR-0020`](docs/03-architecture/decisions/adr-0020-app-platform.md).
-Previous: [`01-plan-generation.md`](docs/06-coco/evidence/planning/01-plan-generation.md).
+[`docs/06-coco/evidence/development/01-foundation-setup.md`](docs/06-coco/evidence/development/01-foundation-setup.md)
+— foundation setup SQL and the justfile recipes behind `just deploy-foundation`, phases 1–3 of 5.
+Includes the zero-DDL proof that nothing has been deployed yet, and the two `04-code.md` §6
+contradictions recorded in §7 above.
+Previous: [`planning/02-app-platform-investigation.md`](docs/06-coco/evidence/planning/02-app-platform-investigation.md).
 
-Next entry goes in `docs/06-coco/evidence/development/01-<slug>.md`.
+Next entry goes in `docs/06-coco/evidence/development/02-<slug>.md`, after phases 4 and 5.
