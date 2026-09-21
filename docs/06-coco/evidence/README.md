@@ -16,7 +16,7 @@ One folder per phase. **One file per session** — never append to an existing e
 | Phase | Folder | Status |
 | --- | --- | --- |
 | Planning | [planning/](planning/) | **Complete** — 2 entries |
-| Development | [development/](development/README.md) | Not started |
+| Development | [development/](development/README.md) | **In progress** — 1 entry |
 | Execution | [execution/](execution/README.md) | Not started |
 | Testing | [testing/](testing/README.md) | Not started |
 
@@ -33,6 +33,7 @@ the [index](#index) below. `<NN>` is a zero-padded sequence within the phase. Ru
 | --- | --- | --- |
 | [planning/01-plan-generation.md](planning/01-plan-generation.md) | Planning | Generating the full plan — 46 documents, the reference-solution forensics, the cost under-report CoCo made and the human caught |
 | [planning/02-app-platform-investigation.md](planning/02-app-platform-investigation.md) | Planning | Testing Snowflake App Runtime in-account: blocked on trial accounts, plain SPCS available, Streamlit verified. Outcome [`ADR-0020`](../../03-architecture/decisions/adr-0020-app-platform.md) |
+| [development/01-foundation-setup.md](development/01-foundation-setup.md) | Development | `00_setup` + `90_teardown` behind `just deploy-foundation` (`US-44`, `US-45`, `T-50`, `T-52`). Local toolchain built from nothing; account move to `JKDRJBB-MW27072` re-verified; two contradictions found in `04-code.md` §6; the "batched SQL silently skips statements" rule disproved by execution |
 
 The seven required sections, in order:
 
@@ -83,3 +84,5 @@ select 'warehouse', sum(credits_used)
 | # | Phase | Entry | Date | Produced |
 | --- | --- | --- | --- | --- |
 | 01 | Planning | [01-plan-generation.md](planning/01-plan-generation.md) | 2026-09-17 | The whole of `docs/` — 25 documents. Reference-solution forensics; live capability verification |
+| 02 | Planning | [02-app-platform-investigation.md](planning/02-app-platform-investigation.md) | 2026-09-18 | `ADR-0020`: App Runtime blocked on trial, Streamlit verified. Eight in-account capability probes |
+| 03 | Development | [01-foundation-setup.md](development/01-foundation-setup.md) | 2026-09-21 | 846 lines of setup/teardown SQL, 3 justfile recipes implemented. **Nothing deployed yet** — zero-DDL proof included |

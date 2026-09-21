@@ -145,8 +145,12 @@ and unreproducible by a judge.
 - **`env=dev` is the default** and resolves to your personal clone `WIND_OPS_AI_DEV_<INITIALS>`
   (set `git config user.initials nk` once). `env=shared` targets the team database and must be typed
   deliberately, every time.
-- **Ad-hoc SQL still goes through `just sql <file>`** — a file in git, run one statement at a time.
-  Batched multi-statement SQL silently skips statements; that already cost us a debugging cycle.
+- **Ad-hoc SQL still goes through `just sql <file>`** — a file in git, parameterised, never a
+  literal database name. **No statement may fail unnoticed.** This rule was originally "one statement
+  per call", on the belief that batched multi-statement SQL silently skips statements. That is not
+  reproducible on `snow` CLI 3.27: `snow sql -f` echoes every statement, aborts at the first failure,
+  and exits non-zero — verified by execution, recorded in [`STATE.md`](STATE.md) §7. Grouped `.sql`
+  files are therefore fine. Do not batch through a path that has *not* been checked for this.
 - **Recipes are idempotent.** Safe to run twice. `CREATE OR ALTER` / `IF NOT EXISTS`, never
   "drop then create" on anything holding data. `just update` is the everyday command and must never
   drop or recreate a table with rows in it.

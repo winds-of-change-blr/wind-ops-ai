@@ -1,24 +1,32 @@
 # Deployment
 
-> **Status:** Draft v0.2 · **Owner:** NK · **Last updated:** 2026-09-18
+> **Status:** Draft v0.3 · **Owner:** NK · **Last updated:** 2026-09-21
 >
+> **v0.3** re-points §1 at account `JKDRJBB-MW27072` after the account move, and notes that planning
+> credits were charged to the old account (§6).
 > **v0.2** adds §3.1: the `just` recipes that run each setup step. Nothing is invoked by hand.
 
 ---
 
 ## 1. Target environment
 
-Verified by direct execution on 2026-09-17, not read from documentation.
+Verified by direct execution on 2026-09-21, not read from documentation.
+
+> **The account changed on 2026-09-21.** Planning ran against `BGTCHIX-UZ86048`, which is gone. The
+> row below is the current account, re-verified by execution. Capability evidence from the old
+> account does not carry over — see [`STATE.md`](../../STATE.md) §5 for what has and has not been
+> re-proven.
 
 | Property | Value |
 | --- | --- |
-| Account | `BGTCHIX-UZ86048` (org `BGTCHIX`, account `UZ86048`, locator `LM21871`) |
+| Account | `JKDRJBB-MW27072` (org `JKDRJBB`, account `MW27072`, locator `EB28292`) |
 | Region | `AZURE_CENTRALINDIA` |
 | Version at verification | 10.33.101 |
 | Account type | **Trial**, with a $400 credit (Official Rules §4.3) |
 | Edition | Not readable to our role. Design assumes the **lowest** plausible capability set (`Q-7`) |
-| Cross-region inference | `CORTEX_ENABLED_CROSS_REGION = ANY_REGION` — **required** for `claude-sonnet-4-5` |
-| Cortex Analyst | `ENABLE_CORTEX_ANALYST = true` |
+| Cross-region inference | `CORTEX_ENABLED_CROSS_REGION = ANY_REGION` — **required** for `claude-sonnet-4-5`. Confirmed set at `ACCOUNT` level |
+| Cortex Analyst | `ENABLE_CORTEX_ANALYST = true` (`SYSTEM` level) |
+| Roles available to us | `ACCOUNTADMIN`, `ORGADMIN`, `SECURITYADMIN`, `SYSADMIN`, `USERADMIN`, `PUBLIC` |
 
 ## 2. Environments
 
@@ -104,8 +112,11 @@ Order: app → agent → search service → ML instances → dynamic tables → 
 
 ## 6. Cost controls
 
-`NFR-8`. Planning consumed **≈16.75 credits** — 15.07 CoCo Desktop tokens plus 1.68 warehouse. Cost
-must be summed across **both** sources; warehouse metering alone under-reports by roughly ten times.
+`NFR-8`. An early planning snapshot recorded **≈16.75 credits** — 15.07 CoCo Desktop tokens plus 1.68
+warehouse; by the end of planning [`STATE.md`](../../STATE.md) §6 recorded **≈51.18**. Both were
+charged to the old account `BGTCHIX-UZ86048` and do **not** count against the current $400. Spend on
+`JKDRJBB-MW27072` is tracked in `STATE.md` §6. Cost must be summed across **both** sources; warehouse
+metering alone under-reports by roughly ten times. The CoCo column is `TOKEN_CREDITS`, not `CREDITS`.
 
 | Control | Setting |
 | --- | --- |
@@ -144,4 +155,4 @@ are *live* fallbacks, not a video.
 | --- | --- | --- |
 | `Q-39` | ~~Can we create a Streamlit object on this trial account?~~ **Closed 2026-09-18 — yes.** And the wider question is answered: **Snowflake App Runtime is blocked on trial accounts**, so the app is Streamlit by decision, not by default ([`ADR-0020`](decisions/adr-0020-app-platform.md)) | NK |
 | `Q-40` | Do we set an account resource monitor, given only one account and shared credits? Recommendation: yes, with notify-only at first | NK |
-| `Q-41` | Who holds the elevated credential for the one-time setup step, and where does it live? Recommendation: NK, in the OS keychain, never in git | NK |
+| `Q-41` | Who holds the elevated credential for the one-time setup step, and where does it live? Recommendation: NK, in the OS keychain, never in git. **Re-opened 2026-09-21** by the move to `JKDRJBB-MW27072` — the answer was scoped to the old account | NK |

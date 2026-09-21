@@ -14,11 +14,19 @@ env := "dev"
 # Your initials, for the personal dev clone. Override: `just initials=jp deploy`.
 initials := lowercase(trim(shell("git config user.initials 2>/dev/null || echo ''")))
 
-# The Snowflake connection from ~/.snowflake/connections.toml.
-connection := env_var_or_default("SNOWFLAKE_DEFAULT_CONNECTION_NAME", "default")
+# The Snowflake connection. `snow` picks up SNOWFLAKE_DEFAULT_CONNECTION_NAME from
+# the environment on its own, so recipes below deliberately do NOT pass
+# --connection: whatever `snow connection test` uses is what a deploy will use, and
+# there is only ever one answer. This variable exists so `just target` can show it.
+connection := env_var_or_default("SNOWFLAKE_DEFAULT_CONNECTION_NAME", "(snow default)")
 
-# Where deployment SQL and Snowpark entrypoints live (created during build).
-deploy_dir := "deploy"
+# The resolved target database. `_resolve-db` is what REFUSES a bad combination;
+# this is only the name. Any recipe that touches Snowflake must depend on
+# `_resolve-db` so the guard runs before this value is used.
+database := if env == "shared" { "WIND_OPS_AI" } else { "WIND_OPS_AI_DEV_" + uppercase(initials) }
+
+# Where the numbered deployment SQL lives.
+sql_dir := "sql"
 
 # Project board this repo's PRs are tracked on, and its Iteration field id
 # (`gh project field-list 1 --owner winds-of-change-blr` to re-derive if the
@@ -112,8 +120,12 @@ hooks:
 #   1. Idempotent. Safe to run twice. CREATE OR ALTER / IF NOT EXISTS, never
 #      "drop then create" on anything holding data.
 #   2. Prints its target first, and refuses `env=shared` without confirmation.
-#   3. One statement per call. Batched multi-statement SQL silently skips
-#      statements — this cost us a debugging cycle during planning.
+#   3. No statement may fail unnoticed. Originally written as "one statement per
+#      call", on the belief that batched multi-statement SQL silently skips
+#      statements. That is NOT reproducible on snow CLI 3.27: `snow sql -f` echoes
+#      every statement, aborts at the first failure, and exits non-zero. So
+#      grouped .sql files are fine and are what we use. Verified by execution;
+#      recorded in STATE.md §7.
 
 # Full stack into the resolved target, in dependency order. Idempotent.
 # Implements: US-44 (deployment scripts) · docs/03-architecture/deployment.md
@@ -124,9 +136,37 @@ deploy: _resolve-db (_todo "deploy" "US-44") && (verify)
 
 # Roles, warehouses, database, schemas, grants. Run once per environment.
 # Naming authority: docs/03-architecture/04-code.md. Least privilege (NFR-3).
+#
+# IMPLEMENTED (US-44, US-45, NFR-3, NFR-6 — proven by T-50, T-52).
+# Two stages, per docs/03-architecture/deployment.md §3:
+#   0x  elevated, one-time, account objects only (roles, warehouses, database)
+#   1x  WOA_ADMIN — schemas and grants; holds no account-level privilege
+# 12_grants_dev.sql runs only for env=dev: WOA_ENGINEER gets CREATE in a personal
+# clone and, per 04-code.md §6, no grant on the shared WIND_OPS_AI at all.
 [doc('Roles, warehouses, database, schemas, grants. Once per environment')]
 [group('snowflake')]
-deploy-foundation: _resolve-db (_todo "deploy-foundation" "US-44, NFR-3")
+deploy-foundation: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n' "{{connection}}"
+    printf 'env        : %s\n\n' "{{env}}"
+
+    for f in 01_account_roles 02_account_warehouses 03_account_database \
+             10_schemas 11_grants; do
+        printf '\n=== %s ===\n' "$f"
+        snow sql -f "{{sql_dir}}/00_setup/${f}.sql" -D "database={{database}}"
+    done
+
+    # Developer build rights belong in a personal clone only.
+    if [ "{{env}}" = "dev" ]; then
+        printf '\n=== 12_grants_dev (env=dev) ===\n'
+        snow sql -f "{{sql_dir}}/00_setup/12_grants_dev.sql" -D "database={{database}}"
+    else
+        printf '\nskipped 12_grants_dev: WOA_ENGINEER gets no grant on %s\n' "{{database}}"
+    fi
+
+    printf '\nfoundation deployed into %s. Run `just verify`.\n' "{{database}}"
 
 # GEN/RAW/CURATED/SERVING: generator, tables, dynamic table (M12), semantic view.
 # Implements: US-8..US-12 (generator) · US-18..US-22 · US-93 (incremental path)
@@ -187,17 +227,76 @@ results: _resolve-db (_todo "results" "T-92, T-95")
 [group('snowflake')]
 cost: _resolve-db (_todo "cost" "NFR-8, T-54")
 
-# Run one .sql file, ONE STATEMENT AT A TIME, against the resolved target.
-# The only sanctioned way to run ad-hoc SQL, and it still goes through just.
-[doc('Run one .sql file, ONE STATEMENT AT A TIME, against the resolved target')]
+# Run one .sql file against the resolved target. The only sanctioned way to run
+# ad-hoc SQL, and it still goes through just and still goes through git.
+#
+# IMPLEMENTED. Passes `database` so the file can use <% database %> and never a
+# literal (NFR-6). An undefined template variable is a hard rendering error in
+# `snow`, so a missing parameter fails loudly instead of substituting empty.
+#
+# On batching: AGENTS.md says multi-statement SQL "silently skips statements".
+# That is not reproducible on snow CLI 3.27 — each statement is echoed, the first
+# failure aborts the rest, and the process exits non-zero. Verified by execution;
+# recorded in STATE.md §7.
+[doc('Run one .sql file against the resolved target')]
 [group('snowflake')]
-sql FILE: _resolve-db (_todo "sql" "AGENTS.md > Deployment")
+sql FILE: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f "{{FILE}}" ]; then
+        echo "error: no such file: {{FILE}}" >&2
+        exit 1
+    fi
+    printf 'database   : %s\n' "{{database}}"
+    printf 'file       : %s\n\n' "{{FILE}}"
+    snow sql -f "{{FILE}}" -D "database={{database}}"
 
 # Drop everything this project created in the resolved target. Destructive.
-# Must require the typed database name, and must refuse `env=shared` outright.
+#
+# IMPLEMENTED (US-44 — the teardown half of T-52).
+# Two guards, neither of which has an override flag:
+#   1. refuses env=shared outright — that is somebody else's database
+#   2. requires the resolved database name to be typed by hand
+# Warehouses and roles are ACCOUNT-LEVEL and shared by every developer's clone.
+# Dropping them affects the whole account, which is why guard 2 exists. See
+# sql/90_teardown/README.md.
 [doc('Drop everything this project created in the resolved target. Destructive')]
 [group('snowflake')]
-teardown: _resolve-db (_todo "teardown" "US-44")
+teardown: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [ "{{env}}" = "shared" ]; then
+        echo "refusing: teardown of the SHARED database is not available through this recipe." >&2
+        echo "  It would drop the database the demo runs from, plus the account-level" >&2
+        echo "  warehouses and roles every developer's clone depends on." >&2
+        echo "  This is a team decision (CONTRIBUTING.md > What CoCo must not decide alone)." >&2
+        exit 1
+    fi
+
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n\n' "{{connection}}"
+    echo 'This drops:'
+    echo "  * database {{database}} and everything in it"
+    echo '  * warehouses WOA_APP_WH, WOA_BUILD_WH   (ACCOUNT-LEVEL, shared)'
+    echo '  * the nine WOA_* roles                  (ACCOUNT-LEVEL, shared)'
+    echo
+    echo 'The warehouses and roles are shared with every other clone in this account.'
+    echo 'The database is recoverable with UNDROP; the roles and warehouses are not.'
+    echo
+    printf 'Type the database name to confirm: '
+    read -r typed
+    if [ "$typed" != "{{database}}" ]; then
+        echo "refusing: typed '$typed', expected '{{database}}'." >&2
+        exit 1
+    fi
+
+    for f in 01_database 02_warehouses 03_roles; do
+        printf '\n=== %s ===\n' "$f"
+        snow sql -f "{{sql_dir}}/90_teardown/${f}.sql" -D "database={{database}}"
+    done
+
+    printf '\nteardown complete.\n'
 
 # --- release -----------------------------------------------------------------
 
