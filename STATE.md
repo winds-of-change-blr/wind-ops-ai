@@ -1,7 +1,7 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-09-21 · **by:** JP · **CoCo session:** `34ca9e37-5241-44c0-b632-53e21e2c8e96`
-> **Plan day:** D1 (foundation build started) · **Branch:** `feat/jp/deploy-foundation`
+> **Last updated:** 2026-09-22 · **by:** KR · **CoCo session:** current
+> **Plan day:** D5 (foundation deployed, data layer built) · **Branch:** `feat/kr/deploy-data-foundation`
 
 **This file holds status, never intent.** Intent lives in `docs/`. If the two disagree: `docs/` wins on
 *what we are building*, this file wins on *how far we got*. Overwrite sections in place — never append.
@@ -13,7 +13,7 @@ Full protocol in [`AGENTS.md`](AGENTS.md#session-protocol).
 
 | Gate | State | Blocking |
 | --- | --- | --- |
-| **G1** — data is honest (D4) | Not started | — |
+| **G1** — data is honest (D4) | In progress — dimensions seeded, fact tables empty | generator needed |
 | **G2** — the model is real (D9) | Not started | `T-10` at D4 |
 | **G3** — answers are trustworthy (D9) | Not started | G2 |
 | **G4** — actions are safe (D12) | Not started | — |
@@ -30,18 +30,18 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| JP | `US-44`, `US-45` · `T-50`, `T-52` | `feat/jp/deploy-foundation` | 2026-09-21 | `00_setup` + `90_teardown` behind `just deploy-foundation`. Also re-verifying §5 against the new account |
+| KR | `US-1`, `US-8` · `T-1`, `T-52` | `feat/kr/deploy-data-foundation` | 2026-09-22 | Foundation deployed to `WIND_OPS_AI_DEV_KR`. Dimension tables seeded, fact tables created (empty). `just deploy-data` recipe implemented |
 
 ## 3. Next actions, in order
 
 Taken from [`project-plan.md`](docs/08-delivery/project-plan.md) D1. Do not re-derive the plan here —
 just the next three things, each with the ID that proves it done.
 
-1. **Decide `WOA_SCHEDULER`** (`Q-78`, `DEP-8`, D1 blocking) — automations inherit the creator's default
-   role, which breaks `NFR-3` if left as `ACCOUNTADMIN`. Record in `04-code.md`.
-2. **Write the deck skeleton** (`US-85`) — D1 deliberately, not D14. It is the specification and the
-   cut-decision tool.
-3. **Setup scripts, roles, schemas** behind `just deploy-foundation` — `T-52` must run.
+1. **Build the synthetic data generator** (`US-2`…`US-7`, `US-52`) — SCADA signals, CMS features,
+   damage accumulation, failure events, alarm streams. Without this, `G1` cannot pass.
+2. **Curated layer** (`US-9`, `US-11`, `US-12`, `US-93`) — matched-band CMS join, operating state,
+   one dynamic table with `TARGET_LAG`.
+3. **Decide `WOA_SCHEDULER`** (`Q-78`, `DEP-8`) — still open.
 
 `Q-39` (Streamlit) is **closed** — verified working on 2026-09-18, ahead of D1.
 
@@ -67,9 +67,13 @@ whenever you create or drop an object.
 
 | Thing | State |
 | --- | --- |
-| Databases | **None.** `WIND_OPS_AI` not created |
-| Schemas | — |
-| Roles / warehouses | **None** of the `WOA_*` roles or warehouses exist |
+| Databases | `WIND_OPS_AI_DEV_KR` — KR's personal dev clone, deployed 2026-09-22. `WIND_OPS_AI` (shared) not created |
+| Schemas | 10: GEN, RAW, CURATED, SERVING, ML, ENGINE, ACTION, DOCS, OPS, APP — all owned by WOA_ADMIN |
+| Roles | 9 `WOA_*` roles created: ADMIN, APP, AGENT, SCHEDULER, ENGINEER, RMC, PLANNER, EXEC, TECH. Hierarchy and grants applied |
+| Warehouses | `WOA_APP_WH` and `WOA_BUILD_WH` — both XSMALL, auto-suspend 60s, initially suspended |
+| RAW dimension tables | `DIM_COMPONENT_CLASS` (10), `DIM_PLATFORM` (2), `DIM_SITE` (6), `DIM_CONTRACT` (6), `DIM_EXCLUSION_CLASS` (5), `DIM_TURBINE` (100), `DIM_COMPONENT` (1000), `DIM_COMPONENT_GENEALOGY` (1000), `DIM_SIGNAL` (4100), `DIM_ALARM_CODE` (31), `DIM_FAILURE_CODE` (26), `DIM_CREW` (8), `DIM_PART` (19), `DIM_STOCK` (76) — all seeded |
+| RAW fact tables | `FCT_SIGNAL_10MIN`, `FCT_CMS_FEATURE`, `FCT_TURBINE_STATE`, `FCT_ALARM_NORMALISED`, `FCT_WORK_ORDER`, `FCT_PART_MOVEMENT` — created, **empty** (awaiting generator) |
+| GEN tables | `GEN_DAMAGE_STATE` — created, empty |
 | Models, semantic views, search services, agents | **None** |
 | Re-verified as *possible* on `JKDRJBB-MW27072` (2026-09-21) | `AI_COMPLETE('claude-sonnet-4-5')`, `AI_COMPLETE('llama3.1-8b')`, `SNOWFLAKE.CORTEX.COMPLETE` for both, `AI_EXTRACT`, `SNOWFLAKE.ML.CLASSIFICATION`, `ANOMALY_DETECTION`, `DOCUMENT_INTELLIGENCE`, `FORECAST`, `TOP_INSIGHTS`, `CREATE COMPUTE POOL` (`CPU_X64_XS`, compiles). Account params confirmed: `CORTEX_ENABLED_CROSS_REGION = ANY_REGION`, `ENABLE_CORTEX_ANALYST = true` |
 | **Carried over from the old account — NOT yet re-proven** | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE DYNAMIC TABLE`, `CREATE AGENT`, `CREATE STREAMLIT`, `AI_PARSE_DOCUMENT`, `CREATE SERVICE`, `CREATE ARTIFACT REPOSITORY`, `CREATE IMAGE REPOSITORY`. Each needs a database to exist first — they get proven by `just verify` once `deploy-foundation` lands |
@@ -110,10 +114,11 @@ ADR or RAID reference, that is a defect.
 
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/01-foundation-setup.md`](docs/06-coco/evidence/development/01-foundation-setup.md)
-— foundation setup SQL and the justfile recipes behind `just deploy-foundation`, phases 1–3 of 5.
-Includes the zero-DDL proof that nothing has been deployed yet, and the two `04-code.md` §6
-contradictions recorded in §7 above.
-Previous: [`planning/02-app-platform-investigation.md`](docs/06-coco/evidence/planning/02-app-platform-investigation.md).
+[`docs/06-coco/evidence/development/02-data-layer-foundation.md`](docs/06-coco/evidence/development/02-data-layer-foundation.md)
+— deployed foundation (roles, warehouses, database, schemas, grants) to `WIND_OPS_AI_DEV_KR`.
+Created 14 dimension tables and 7 fact tables in RAW and GEN schemas. Seeded all dimension tables
+with data from the company profile: 100 turbines, 1,000 components, 4,100 signals, 31 alarm codes.
+Implemented `just deploy-data` recipe.
+Previous: [`development/01-foundation-setup.md`](docs/06-coco/evidence/development/01-foundation-setup.md).
 
-Next entry goes in `docs/06-coco/evidence/development/02-<slug>.md`, after phases 4 and 5.
+Next entry goes in `docs/06-coco/evidence/development/03-<slug>.md`, after the generator.
