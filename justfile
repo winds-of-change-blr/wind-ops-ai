@@ -170,9 +170,24 @@ deploy-foundation: _resolve-db
 
 # GEN/RAW/CURATED/SERVING: generator, tables, dynamic table (M12), semantic view.
 # Implements: US-8..US-12 (generator) · US-18..US-22 · US-93 (incremental path)
+#
+# IMPLEMENTED (partial — dimension and fact tables, seed data).
+# Generator procedures and curated layer are in progress.
 [doc('GEN/RAW/CURATED/SERVING: generator, tables, dynamic table, semantic view')]
 [group('snowflake')]
-deploy-data: _resolve-db (_todo "deploy-data" "US-8..US-12, US-93")
+deploy-data: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n' "{{connection}}"
+    printf 'env        : %s\n\n' "{{env}}"
+
+    for f in 01_dimension_tables 02_fact_tables 03_seed_dimensions; do
+        printf '\n=== %s ===\n' "$f"
+        snow sql -f "{{sql_dir}}/10_generate/${f}.sql" -D "database={{database}}"
+    done
+
+    printf '\ndata tables deployed into %s.\n' "{{database}}"
 
 # ML schema: train, evaluate, register. Writes metrics to OPS for T-15/T-17.
 # Must fail loudly if the model does not beat both baselines (T-10).
