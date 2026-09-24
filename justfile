@@ -28,6 +28,17 @@ database := if env == "shared" { "WIND_OPS_AI" } else { "WIND_OPS_AI_DEV_" + upp
 # Where the numbered deployment SQL lives.
 sql_dir := "sql"
 
+# How every recipe below invokes `snow sql`.
+#
+# `--enable-templating STANDARD` restricts variable substitution to the `<% ... %>`
+# syntax we actually use. The CLI default is `LEGACY,STANDARD`, and LEGACY also
+# treats bare `&IDENT` as a variable — so a literal ampersand in *data* becomes a
+# template error: `'C&I'` in DIM_CONTRACT rendered as undefined variable `&I` and
+# aborted the whole seed. Generated technician notes (see
+# docs/04-data/data-sources-and-synthetic-data.md §5) are deliberately messy free
+# text, so this would have kept recurring. STANDARD only, everywhere.
+snow_sql := "snow sql --enable-templating STANDARD"
+
 # Project board this repo's PRs are tracked on, and its Iteration field id
 # (`gh project field-list 1 --owner winds-of-change-blr` to re-derive if the
 # board is ever recreated).
@@ -155,13 +166,13 @@ deploy-foundation: _resolve-db
     for f in 01_account_roles 02_account_warehouses 03_account_database \
              10_schemas 11_grants; do
         printf '\n=== %s ===\n' "$f"
-        snow sql -f "{{sql_dir}}/00_setup/${f}.sql" -D "database={{database}}"
+        {{snow_sql}} -f "{{sql_dir}}/00_setup/${f}.sql" -D "database={{database}}"
     done
 
     # Developer build rights belong in a personal clone only.
     if [ "{{env}}" = "dev" ]; then
         printf '\n=== 12_grants_dev (env=dev) ===\n'
-        snow sql -f "{{sql_dir}}/00_setup/12_grants_dev.sql" -D "database={{database}}"
+        {{snow_sql}} -f "{{sql_dir}}/00_setup/12_grants_dev.sql" -D "database={{database}}"
     else
         printf '\nskipped 12_grants_dev: WOA_ENGINEER gets no grant on %s\n' "{{database}}"
     fi
@@ -184,7 +195,7 @@ deploy-data: _resolve-db
 
     for f in 01_dimension_tables 02_fact_tables 03_seed_dimensions; do
         printf '\n=== %s ===\n' "$f"
-        snow sql -f "{{sql_dir}}/10_generate/${f}.sql" -D "database={{database}}"
+        {{snow_sql}} -f "{{sql_dir}}/10_generate/${f}.sql" -D "database={{database}}"
     done
 
     printf '\ndata tables deployed into %s.\n' "{{database}}"
@@ -264,7 +275,7 @@ sql FILE: _resolve-db
     fi
     printf 'database   : %s\n' "{{database}}"
     printf 'file       : %s\n\n' "{{FILE}}"
-    snow sql -f "{{FILE}}" -D "database={{database}}"
+    {{snow_sql}} -f "{{FILE}}" -D "database={{database}}"
 
 # Drop everything this project created in the resolved target. Destructive.
 #
@@ -308,7 +319,7 @@ teardown: _resolve-db
 
     for f in 01_database 02_warehouses 03_roles; do
         printf '\n=== %s ===\n' "$f"
-        snow sql -f "{{sql_dir}}/90_teardown/${f}.sql" -D "database={{database}}"
+        {{snow_sql}} -f "{{sql_dir}}/90_teardown/${f}.sql" -D "database={{database}}"
     done
 
     printf '\nteardown complete.\n'

@@ -108,61 +108,9 @@ when not matched then insert (exclusion_class_code, exclusion_class_name, descri
 -- Platform: GJ-KCH/KA-CTD/RJ-JSM = VW-3.0; TN-TVL/MH-STR/KA-GDG = VW-2.1
 -- Commissioned dates spread across the years shown in the profile.
 -- ---------------------------------------------------------------------------
-insert into RAW.DIM_TURBINE (turbine_id, site_code, platform_id, commissioned_date, uns_path)
-select
-    t.turbine_id,
-    t.site_code,
-    t.platform_id,
-    t.commissioned_date,
-    'vws/' || lower(s.region) || '/' || lower(s.state) || '/' || lower(t.site_code) || '/t' || lpad(t.seq::varchar, 2, '0')
-from (
-    -- GJ-KCH: 28 turbines, VW-3.0, 2023-2025
-    select 'GJ-KCH' as site_code, 'VW-3.0' as platform_id,
-           row_number() over (order by seq4()) as seq,
-           dateadd(day, (row_number() over (order by seq4()) - 1) * 30, '2023-03-01'::date) as commissioned_date
-    from table(generator(rowcount => 28))
-    union all
-    -- TN-TVL: 22 turbines, VW-2.1, 2016-2018
-    select 'TN-TVL', 'VW-2.1',
-           row_number() over (order by seq4()),
-           dateadd(day, (row_number() over (order by seq4()) - 1) * 35, '2016-06-01'::date)
-    from table(generator(rowcount => 22))
-    union all
-    -- KA-CTD: 18 turbines, VW-3.0, 2022-2024
-    select 'KA-CTD', 'VW-3.0',
-           row_number() over (order by seq4()),
-           dateadd(day, (row_number() over (order by seq4()) - 1) * 40, '2022-04-01'::date)
-    from table(generator(rowcount => 18))
-    union all
-    -- MH-STR: 14 turbines, VW-2.1, 2017-2019
-    select 'MH-STR', 'VW-2.1',
-           row_number() over (order by seq4()),
-           dateadd(day, (row_number() over (order by seq4()) - 1) * 50, '2017-07-01'::date)
-    from table(generator(rowcount => 14))
-    union all
-    -- RJ-JSM: 12 turbines, VW-3.0, 2024-2025
-    select 'RJ-JSM', 'VW-3.0',
-           row_number() over (order by seq4()),
-           dateadd(day, (row_number() over (order by seq4()) - 1) * 35, '2024-03-01'::date)
-    from table(generator(rowcount => 12))
-    union all
-    -- KA-GDG: 6 turbines, VW-2.1, 2019
-    select 'KA-GDG', 'VW-2.1',
-           row_number() over (order by seq4()),
-           dateadd(day, (row_number() over (order by seq4()) - 1) * 30, '2019-01-15'::date)
-    from table(generator(rowcount => 6))
-) t
-join RAW.DIM_SITE s on s.site_code = t.site_code
-cross join (select t.site_code || '-T' || lpad(t.seq::varchar, 2, '0') as turbine_id from (select 1)) x
-where not exists (
-    select 1 from RAW.DIM_TURBINE existing
-    where existing.turbine_id = t.site_code || '-T' || lpad(t.seq::varchar, 2, '0')
-);
 
--- Fix: simpler approach — use a CTE to generate and insert turbines
-truncate table if exists RAW.DIM_TURBINE;
-
-insert into RAW.DIM_TURBINE (turbine_id, site_code, platform_id, commissioned_date, uns_path)
+merge into RAW.DIM_TURBINE tgt
+using (
 with site_turbines as (
     select
         s.site_code,
@@ -188,14 +136,17 @@ select
     platform_id,
     dateadd(day, (seq - 1) * 30, start_date) as commissioned_date,
     'vws/' || lower(region) || '/' || lower(replace(state, ' ', '-')) || '/' || lower(site_code) || '/t' || lpad(seq::varchar, 2, '0') as uns_path
-from site_turbines;
+from site_turbines
+) src
+on tgt.turbine_id = src.turbine_id
+when not matched then insert (turbine_id, site_code, platform_id, commissioned_date, uns_path)
+    values (src.turbine_id, src.site_code, src.platform_id, src.commissioned_date, src.uns_path);
 
 -- ---------------------------------------------------------------------------
 -- Components — 10 per turbine = 1,000 total, per profile §5
 -- ---------------------------------------------------------------------------
-truncate table if exists RAW.DIM_COMPONENT;
-
-insert into RAW.DIM_COMPONENT (component_id, turbine_id, component_class_code, installed_serial, install_date, uns_path)
+merge into RAW.DIM_COMPONENT tgt
+using (
 select
     t.turbine_id || '-' || cc.component_class_code as component_id,
     t.turbine_id,
@@ -205,29 +156,35 @@ select
     t.commissioned_date as install_date,
     t.uns_path || '/' || lower(cc.component_class_code) as uns_path
 from RAW.DIM_TURBINE t
-cross join RAW.DIM_COMPONENT_CLASS cc;
+cross join RAW.DIM_COMPONENT_CLASS cc
+) src
+on tgt.component_id = src.component_id
+when not matched then insert (component_id, turbine_id, component_class_code, installed_serial, install_date, uns_path)
+    values (src.component_id, src.turbine_id, src.component_class_code, src.installed_serial, src.install_date, src.uns_path);
 
 -- ---------------------------------------------------------------------------
 -- Initial genealogy — every component starts with its original serial
 -- ---------------------------------------------------------------------------
-truncate table if exists RAW.DIM_COMPONENT_GENEALOGY;
-
-insert into RAW.DIM_COMPONENT_GENEALOGY (component_id, serial_number, valid_from, valid_to, event_type)
-select
-    component_id,
-    installed_serial,
-    install_date::timestamp_ntz,
-    null,
-    'INITIAL_INSTALL'
-from RAW.DIM_COMPONENT;
+merge into RAW.DIM_COMPONENT_GENEALOGY tgt
+using (
+    select
+        component_id,
+        installed_serial as serial_number,
+        install_date::timestamp_ntz as valid_from,
+        null as valid_to,
+        'INITIAL_INSTALL' as event_type
+    from RAW.DIM_COMPONENT
+) src
+on tgt.component_id = src.component_id and tgt.serial_number = src.serial_number
+when not matched then insert (component_id, serial_number, valid_from, valid_to, event_type)
+    values (src.component_id, src.serial_number, src.valid_from, src.valid_to, src.event_type);
 
 -- ---------------------------------------------------------------------------
 -- Signals — per profile §5, key signals for each component type
 -- Approximately 40 signals per turbine (varies by platform).
 -- ---------------------------------------------------------------------------
-truncate table if exists RAW.DIM_SIGNAL;
-
-insert into RAW.DIM_SIGNAL (signal_id, turbine_id, component_id, signal_name, signal_type, unit, normal_range_low, normal_range_high)
+merge into RAW.DIM_SIGNAL tgt
+using (
 with signal_defs as (
     -- Turbine-level environmental/operational signals
     select 'WIND_SPEED'     as name, 'ENVIRONMENTAL' as stype, 'TURBINE' as scope, null as cc, 'm/s'  as unit, 0 as lo, 30 as hi union all
@@ -300,7 +257,11 @@ left join RAW.DIM_COMPONENT c
     on c.turbine_id = t.turbine_id
     and c.component_class_code = sd.cc
 where sd.scope = 'TURBINE'
-   or (sd.scope = 'COMPONENT' and c.component_id is not null);
+   or (sd.scope = 'COMPONENT' and c.component_id is not null)
+) src
+on tgt.signal_id = src.signal_id
+when not matched then insert (signal_id, turbine_id, component_id, signal_name, signal_type, unit, normal_range_low, normal_range_high)
+    values (src.signal_id, src.turbine_id, src.component_id, src.signal_name, src.signal_type, src.unit, src.normal_range_low, src.normal_range_high);
 
 -- ---------------------------------------------------------------------------
 -- Failure codes — per profile §5 typical failure modes
