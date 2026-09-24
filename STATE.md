@@ -30,7 +30,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| KR | `US-1`, `US-8` · `T-1`, `T-52` | `feat/kr/deploy-data-foundation` | 2026-09-22 | Foundation deployed to `WIND_OPS_AI_DEV_KR`. Dimension tables seeded, fact tables created (empty). `just deploy-data` recipe implemented |
+| SB | `US-2`…`US-7`, `US-52` · `T-8`, `T-11`, `T-12`, `T-13`, `T-7`, `T-9`, `T-62`, `T-64`…`T-67` | `feat/sb/synthetic-data-generator` | 2026-09-24 | Synthetic data generator + `OPS` quality assertions, for `G1`. **Account `EB28292` was found empty** — KR's foundation and data layer no longer exist and are being re-deployed as part of this work |
 
 ## 3. Next actions, in order
 
