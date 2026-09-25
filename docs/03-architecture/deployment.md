@@ -47,6 +47,7 @@ idempotent (`T-52`), promotion is a re-run, not a migration.
 flowchart TD
     S0["00_setup — elevated, ONE TIME<br/>account objects only"] --> S1["00_setup — WOA_ADMIN<br/>database, schemas, warehouses, roles"]
     S1 --> S2[10_generate<br/>synthetic fleet + failures]
+    S2 --> SQ[15_quality<br/>OPS data-quality assertions]
     S2 --> S3[20_curate<br/>dynamic tables]
     S3 --> S4[30_serve<br/>metric views + semantic view]
     S3 --> S5[40_engine<br/>alarms, ranking, constraints]
@@ -72,15 +73,15 @@ non-zero until implemented (`US-44`).
 | --- | --- |
 | `just target` | Nothing. Prints the database and connection a run would hit. **Run it first** |
 | `just deploy-foundation` | `00_setup` (both stages) |
-| `just deploy-data` | `10_generate`, `20_curate`, `30_serve` |
+| `just deploy-data` | `10_generate`, `15_quality`, `20_curate`, `30_serve` |
 | `just deploy-ml` | `python/ml` — fails loudly if the model does not beat both baselines (`T-10`) |
 | `just deploy-engine` | `40_engine`, `50_action` |
 | `just deploy-agent` | `60_docs`, `70_agent` |
 | `just deploy-app` | `app` |
 | `just deploy` | All of the above in dependency order, then `just verify` |
 | `just update` | Only what changed. **Never drops or recreates anything holding rows** |
-| `just verify` | `S11` smoke test plus the 18 gating tests against the live target |
-| `just seed` | Regenerates synthetic data with a deterministic seed (`T-8`) |
+| `just verify` | `S11` smoke test plus the 18 gating tests against the live target. **Implemented for the `G1` data-quality suite** — runs `OPS.SP_RUN_DATA_QUALITY` and gates on it via `OPS.SP_ASSERT_QUALITY_GATE`, which raises so the recipe exits non-zero |
+| `just seed` | Regenerates synthetic data with a deterministic seed (`T-8`). **Implemented** — calls `GEN.SP_GENERATE_ALL`, which runs the six stages in dependency order and records the run in `GEN.GEN_RUN_CONFIG`. Window, seed, damage multiplier, bad-batch share and signal interval are all recipe parameters |
 | `just sql <file>` | One `.sql` file, **one statement at a time**. The only sanctioned ad-hoc path |
 | `just teardown` | §5 below |
 | `just cost` | §6 below, both credit sources summed |

@@ -107,13 +107,22 @@ create table if not exists RAW.FCT_PART_MOVEMENT (
     movement_id         varchar(30)     not null,
     work_order_id       varchar(30),
     part_number         varchar(30)     not null,
-    stock_id            varchar(30),
+    -- Must match DIM_STOCK.STOCK_ID, which is varchar(60). This was varchar(30)
+    -- and silently narrower than the key it references: the generator hit it on
+    -- the first real stock id ('STK-Chitradurga Site-PT-GBX-BEAR-HSS', 37 chars)
+    -- with a truncation error. A foreign key narrower than its primary key is a
+    -- defect whether or not any current row happens to fit.
+    stock_id            varchar(60),
     movement_type       varchar(20)     not null,
     quantity            integer         not null,
     movement_date       timestamp_ntz   not null,
     is_synthetic        boolean         not null default true,
     constraint pk_part_movement primary key (movement_id)
 );
+
+-- Widen it on databases deployed before the fix above. Widening a VARCHAR is
+-- metadata-only and non-destructive, so this is safe to re-run.
+alter table RAW.FCT_PART_MOVEMENT alter column stock_id set data type varchar(60);
 
 -- ---------------------------------------------------------------------------
 -- GEN.GEN_DAMAGE_STATE — internal generator state, not a landing table

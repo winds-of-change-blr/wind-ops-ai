@@ -182,8 +182,13 @@ deploy-foundation: _resolve-db
 # GEN/RAW/CURATED/SERVING: generator, tables, dynamic table (M12), semantic view.
 # Implements: US-8..US-12 (generator) · US-18..US-22 · US-93 (incremental path)
 #
-# IMPLEMENTED (partial — dimension and fact tables, seed data).
-# Generator procedures and curated layer are in progress.
+# IMPLEMENTED for the generator (US-1..US-8, US-52) and the OPS data-quality
+# suite. The curated layer (20_curate), metric views (30_serve) and the
+# incremental dynamic table (US-93) are still to come.
+#
+# This deploys the CODE. It writes no fact rows — run `just seed` for that, then
+# `just verify`. Keeping the two apart is what lets `just update` re-apply a
+# changed procedure without touching 108M rows of generated data.
 [doc('GEN/RAW/CURATED/SERVING: generator, tables, dynamic table, semantic view')]
 [group('snowflake')]
 deploy-data: _resolve-db
@@ -193,12 +198,22 @@ deploy-data: _resolve-db
     printf 'connection : %s\n' "{{connection}}"
     printf 'env        : %s\n\n' "{{env}}"
 
-    for f in 01_dimension_tables 02_fact_tables 03_seed_dimensions; do
-        printf '\n=== %s ===\n' "$f"
+    # Order is a dependency order, not a preference: the functions must exist
+    # before the procedures that call them, and 12_generate_all calls all of them.
+    for f in 01_dimension_tables 02_fact_tables 03_seed_dimensions \
+             04_generator_functions 05_operating_context 06_damage_and_failures \
+             07_signals 08_cms_features 09_turbine_state 10_alarms \
+             11_consequences 12_generate_all; do
+        printf '\n=== 10_generate/%s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/10_generate/${f}.sql" -D "database={{database}}"
     done
 
-    printf '\ndata tables deployed into %s.\n' "{{database}}"
+    for f in 01_assertion_framework 02_assertions; do
+        printf '\n=== 15_quality/%s ===\n' "$f"
+        {{snow_sql}} -f "{{sql_dir}}/15_quality/${f}.sql" -D "database={{database}}"
+    done
+
+    printf '\ndata layer deployed into %s. Run `just seed`, then `just verify`.\n' "{{database}}"
 
 # ML schema: train, evaluate, register. Writes metrics to OPS for T-15/T-17.
 # Must fail loudly if the model does not beat both baselines (T-10).
@@ -231,16 +246,62 @@ deploy-app: _resolve-db (_todo "deploy-app" "US-38..US-43, Q-39")
 update *ARGS: _resolve-db (_todo "update" "US-44")
 
 # Post-deploy assertions against the live target: does what the plan claims
-# exists actually exist, and do the 18 gating tests pass against it?
+# exists actually exist, and do the gating tests pass against it?
 # Implements: T-89 (a stranger can run it) · docs/07-quality
-[doc('Post-deploy assertions against the live target, incl. the 18 gating tests')]
+#
+# IMPLEMENTED for the G1 data-quality suite (T-1, T-7, T-8, T-9, T-11, T-12,
+# T-13, T-62, T-64..T-67). The model, engine, agent and app gates land with
+# their own layers.
+#
+# Exits non-zero on a single failed assertion, via OPS.SP_ASSERT_QUALITY_GATE,
+# which RAISEs. A verify step that prints failures and then succeeds is the same
+# defect as a placeholder that silently passes.
+[doc('Post-deploy assertions against the live target, incl. the gating tests')]
 [group('snowflake')]
-verify: _resolve-db (_todo "verify" "18 gating tests")
+verify: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n\n' "{{connection}}"
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/10_run_verify.sql" -D "database={{database}}"
+    printf '\nverify passed against %s.\n' "{{database}}"
 
 # Generate/refresh synthetic data in the target. Deterministic seed (T-8).
+#
+# IMPLEMENTED (US-2..US-7, US-52). Runs GEN.SP_GENERATE_ALL, which executes the
+# six generation stages in dependency order and records the run's parameters in
+# GEN.GEN_RUN_CONFIG.
+#
+# The defaults below are not arbitrary — each was measured:
+#   history=183       six months, per data-sources §3
+#   seed=VWS-2026     any string; the same string reproduces the same fleet,
+#                     the same degradation and the same failures
+#   damage=1.8        with share=0.16 this yields 58 seeded failures, inside the
+#                     40..60 band §3 calls the binding constraint. Raising the
+#                     rate is the sanctioned lever, not lengthening the window
+#   share=0.16        the bad-batch fraction, scaled per class by wear rate, which
+#                     keeps the failure mix drivetrain-weighted at ~60% (T-7)
+#   interval=10       10-minute SCADA grain. ~108M rows over six months and about
+#                     4.5 minutes on an XSMALL. Pass interval=30 or 60 while
+#                     iterating; the demo dataset uses 10
 [doc('Generate/refresh synthetic data in the target. Deterministic seed')]
 [group('snowflake')]
-seed *ARGS: _resolve-db (_todo "seed" "US-8..US-12, T-8")
+seed history="183" seed_value="VWS-2026" damage="1.8" share="0.16" interval="10": _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n' "{{connection}}"
+    printf 'window     : %s days, seed %s\n' "{{history}}" "{{seed_value}}"
+    printf 'damage     : multiplier %s, bad-batch share %s\n' "{{damage}}" "{{share}}"
+    printf 'signals    : %s-minute grain\n\n' "{{interval}}"
+    {{snow_sql}} -f "{{sql_dir}}/10_generate/20_run_seed.sql" \
+        -D "database={{database}}" \
+        -D "history_days={{history}}" \
+        -D "seed={{seed_value}}" \
+        -D "damage_multiplier={{damage}}" \
+        -D "accel_share={{share}}" \
+        -D "interval_min={{interval}}"
+    printf '\ngeneration complete. Run `just verify`.\n'
 
 # Regenerate the results summary from OPS. Never hand-written (T-92, T-95).
 [doc('Regenerate the results summary from OPS. Never hand-written')]

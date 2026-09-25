@@ -64,6 +64,8 @@ choice.
 | Semantic view | `SV_WIND_OPS` | |
 | Search service | `CSS_<corpus>` | `CSS_MAINTENANCE_DOCS` |
 | Test fixture | `FIX_<subject>` | `FIX_AVAILABILITY_HANDWORKED` |
+| Data-quality assertion | `DQ_<subject>` in `OPS` | `DQ_ASSERTION`, `DQ_RESULT` |
+| Generator state | `GEN_<subject>` in `GEN` | `GEN_DAMAGE_STATE`, `GEN_FAILURE_EVENT`, `GEN_SEEDED_PATTERN` |
 
 Rules: upper snake case; singular entity names; no abbreviations beyond the profile's own component
 codes (`GBX`, `MSB`, `GEN`, `PIT`, `BLD`, `CNV`, `TRF`, `YAW`, `NAC`, `TWR`); no dates or version
@@ -153,6 +155,7 @@ wind_ops_ai/
 ├── sql/
 │   ├── 00_setup/          roles, warehouses, database, schemas  (parameterised)
 │   ├── 10_generate/       CMP-1 generator procedures
+│   ├── 15_quality/        OPS data-quality assertions (NFR-14)
 │   ├── 20_curate/         CMP-3 dynamic tables
 │   ├── 30_serve/          CMP-5 metric views, CMP-12 semantic view
 │   ├── 40_engine/         CMP-7..9
