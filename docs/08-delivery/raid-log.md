@@ -2,6 +2,10 @@
 
 > **Status:** Draft v0.5 · **Owner:** NK · **Last updated:** 2026-09-18
 >
+> **v0.6** closes `Q-55` (anomaly granularity), states the `T-18` bound, and raises `I-13`
+> (every published risk score is ~0 — found by the `T-18` degeneracy guard) and `I-14` (the detector
+> was verified on a personal account, not the deploy account).
+>
 > **v0.5** closes `R-7`, `DEP-2` and `Q-39` (Streamlit verified in-account), answers `Q-12` in full,
 > and adds `R-29` (Streamlit's ceiling, now a chosen constraint) and `Q-94` (revisit SAR if paid).
 >
@@ -103,6 +107,8 @@ Live problems, as opposed to risks.
 | `I-10` | **ML features read `RAW` directly, not `CURATED`**, because the curated layer does not exist yet (`US-9`, `US-11`, `US-12`, `US-93`) | The matched-band control `US-9` calls for is satisfied only because the generator writes `rpm_band`/`load_band` onto CMS rows. If curation later re-bands differently, features and curation will disagree | Revisit when `20_curate` lands; `T-3` is the test that will catch a divergence | SB |
 | `I-11` | **`just pr` uses `--fill`, so any PR with more than one commit is titled after the branch.** PR #5 was created as *"feat/sb/synthetic data generator"* and both #5 and #6 needed their title and body set afterwards | Every multi-commit PR gets a poor title unless someone remembers to fix it | Pass `--title` and `--body-file` instead of `--fill`, or generate the body from the commits. Small, and worth doing before the submission PRs | SB |
 | `I-12` | **`T-94`, `T-86` and `T-87` have their numbers but no surface.** The baseline comparison, the alarm funnel and the held-out metric are all recorded in `OPS` and all three are **gating** | Three gating tests cannot pass until the app exists, so `G5` is blocked behind `deploy-app` | Build the evidence panel first, as [`project-plan.md`](project-plan.md) D13 already sequences it | NK |
+| `I-13` | **Every published risk score is ~0, so the triage surface is empty.** All 400 rows of `ML.SCORE_COMPONENT_RISK` fall between 0.000001 and 0.000007 and every one is banded `MINIMAL`; variance is 1e-12. **The classifier is not at fault** — re-predicted across the detection window it has variance 0.026 and 1,326 component-days above `p = 0.50`. The cause is structural: the last day carrying **any** positive label is 2026-08-30 while features run to 2026-09-25, so scoring at the latest feature date scores a period in which, by generator design, nothing can be within the 30-day horizon. Found by the `T-18` degeneracy guard, not by a test aimed at it | **Severe and demo-facing.** Ranking by money, the HIGH-risk walkthrough, `T-94`'s baseline comparison and `T-86`/`T-87` all read this table. The demo's central claim — *here is a component heading for failure* — currently has nothing to point at | **The fix belongs in the generator, not in scoring:** let damage continue past the window end so that at "today" some components are genuinely 5–25 days from failing, which is what prediction means. Scoring "as of" `window_end − horizon` instead would also produce non-zero risk but makes the demo show deliberately stale data. **Not fixed in `feat/nk/anomaly-detector`** because changing the generator moves `T-8` and `T-10`'s measured headline, and silently re-baselining another person's gating result is exactly the failure mode `ADR-0006` exists to prevent. Needs its own story | SA |
+| `I-14` | **The anomaly detector was built and verified on a personal account, not the deploy account.** `snow` was absent from NK's machine and `~/.snowflake/connections.toml` has no `JKDRJBB-MW27072` entry, so the stack was re-deployed from the recipes into `EXKFAFL-NW77746`. The reproduction matched closely — 108,317,900 signal rows against 108,339,384, 58 seeded failures, `T-10` at 1.7647× against 1.71× — which is itself evidence the recipes are account-agnostic and deterministic | The code is proven to run and the arithmetic is proven to hold, but **no figure in evidence 06 is yet a fact about the project's own account**. `STATE.md` §5 must not absorb these object lists as if they were on the deploy account | Re-run `just deploy-ml` on `JKDRJBB-MW27072` when a credential is available, and confirm `T-18` passes there. Cheap — one command. Blocked behind `Q-41` (who holds the elevated credential), which `R-31` already re-pointed at the new account | NK |
 
 ## 4. Dependencies
 
@@ -198,7 +204,7 @@ Seventy-two, grouped by what they block. **Blocking** means work stops without a
 | `Q-52` | One horizon or two? | SA |
 | ~~`Q-53`~~ **CLOSED 2026-09-25** | Which precision/recall operating point? **`p >= 0.50` at component level** — see [`ml-models.md`](../05-ai-ml/ml-models.md) §10 | SA |
 | `Q-54` | Attempt per-prediction SHAP? | SA |
-| `Q-55` | Anomaly detector per instance or per class? | SA |
+| `Q-55` | ~~Anomaly detector per instance or per class?~~ **CLOSED 2026-09-25 — per instance** (`SERIES_COLNAME = COMPONENT_ID`). The per-class recommendation rested on "fewer models to train", which is void: multi-series is one model object either way. [`ml-models.md` §10](../05-ai-ml/ml-models.md#10-open-questions) | SA |
 
 ### Semantic layer, agent, quality
 

@@ -238,7 +238,7 @@ deploy-ml horizon="30": _resolve-db
     printf 'connection : %s\n' "{{connection}}"
     printf 'horizon    : %s days\n\n' "{{horizon}}"
 
-    for f in 00_baseline_spec 01_features 02_train 03_evaluate 04_score_and_drivers; do
+    for f in 00_baseline_spec 01_features 02_train 03_evaluate 04_score_and_drivers 05_anomaly; do
         printf '\n=== 25_ml/%s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/25_ml/${f}.sql" -D "database={{database}}"
     done

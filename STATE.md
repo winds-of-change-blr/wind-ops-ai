@@ -1,7 +1,7 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-09-25 · **by:** SB · **CoCo session:** `1a36e460-4f53-47db-bfc8-052cc16e89c0`
-> **Plan day:** D8 (generator + model built; `T-10` passed) · **Branch:** `feat/sb/deploy-ml`
+> **Last updated:** 2026-09-25 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
+> **Plan day:** D8 (generator + both models built; `T-10` and `T-18` pass) · **Branch:** `feat/nk/anomaly-detector`
 
 **This file holds status, never intent.** Intent lives in `docs/`. If the two disagree: `docs/` wins on
 *what we are building*, this file wins on *how far we got*. Overwrite sections in place — never append.
@@ -14,7 +14,7 @@ Full protocol in [`AGENTS.md`](AGENTS.md#session-protocol).
 | Gate | State | Blocking |
 | --- | --- | --- |
 | **G1** — data is honest (D4) | **PASSED** — 16/16 data assertions green **and `T-10` passes** | — |
-| **G2** — the model is real (D9) | **Nearly passed** — 8 ML assertions green incl. `T-10` at **1.71×** the trivial rule and a stability bound. Missing the anomaly detector (`US-22`, `T-18`) and `T-94`'s surface | `US-22`; `T-94` needs the app |
+| **G2** — the model is real (D9) | **PASSED on the model side** — 10 ML assertions green: `T-10` at **1.76×** the trivial rule, a stability bound, and `T-18` at **Spearman 0.222** against a pre-registered 0.50. Only `T-94`'s *surface* is outstanding, and that needs the app | `T-94` needs the app (`I-12`) |
 | **G3** — answers are trustworthy (D9) | Not started | G2 |
 | **G4** — actions are safe (D12) | Not started | — |
 | **G5** — demo-ready and submittable (D15) | Not started | all |
@@ -33,17 +33,22 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| NK | `US-22`, `T-18` — the anomaly detector | `feat/nk/anomaly-detector` | 2026-09-25 | Closes the second signal `G2` needs. Also takes `Q-55` (series granularity) and states the `T-18` bound, which the plan never fixed |
+| — | — | — | — | Nobody mid-flight. `feat/nk/anomaly-detector` is in review |
 
 ## 3. Next actions, in order
 
 Taken from [`project-plan.md`](docs/08-delivery/project-plan.md) D1. Do not re-derive the plan here —
 just the next three things, each with the ID that proves it done.
 
-1. **The anomaly detector** (`US-22`, `T-18`) — the second, independent signal `ml-models.md` §2
-   requires. Without it `G2` is not passed and the classifier is the only signal we have.
+1. **`I-13` — the published risk scores are all ~0.** Highest priority, and it is not a model bug:
+   the last day carrying a positive label is 2026-08-30 while features run to 2026-09-25, so scoring
+   at "today" scores a window where nothing *can* be within the horizon. The triage surface, the
+   money ranking, `T-94`, `T-86` and `T-87` all read that empty table. Fix belongs in the generator
+   (let damage continue past the window end) and **will move `T-8`/`T-10`'s headline**, so it needs
+   SA and its own story.
 2. **Curated layer** (`US-9`, `US-11`, `US-12`, `US-93`) — matched-band join, operating state,
-   one dynamic table with `TARGET_LAG`. Features currently read `RAW` directly (§7).
+   one dynamic table with `TARGET_LAG`. Features and the detector both read `RAW`/`ML` directly (§7).
+   `CREATE DYNAMIC TABLE` is still unproven on the deploy account.
 3. **Metric layer + hand-worked fixtures** (`US-13`…`US-17`, `T-20`…`T-22`) — availability, lost
    energy, LD exposure, OEE. `G3` depends on it.
 
@@ -97,11 +102,13 @@ whenever you create or drop an object.
 | GEN functions | `FN_RAND`, `FN_WIND_SPEED`, `FN_EXPECTED_POWER`, `FN_RPM_BAND`, `FN_LOAD_BAND`, `FN_DAMAGE_RATE`; view `GEN_SITE_STRESSOR` |
 | GEN procedures | `SP_GENERATE_OPERATING_CONTEXT`, `SP_GENERATE_DAMAGE`, `SP_GENERATE_SIGNALS`, `SP_GENERATE_CMS_FEATURES`, `SP_GENERATE_TURBINE_STATE`, `SP_GENERATE_ALARMS`, `SP_GENERATE_CONSEQUENCES`, `SP_GENERATE_ALL` |
 | OPS objects | `DQ_ASSERTION` (16 catalogued) · `DQ_RESULT` (run history) · `SP_RUN_DATA_QUALITY` · `SP_ASSERT_QUALITY_GATE` |
+| ML objects (anomaly) | **`ANOMALY_DETECTOR`** (`SNOWFLAKE.ML.ANOMALY_DETECTION`, one object, `SERIES_COLNAME=COMPONENT_ID`) · `SCORE_COMPONENT_ANOMALY` (48,801 component-days, 4,661 flagged) · `ML_INDEPENDENCE_SPEC` (the pre-registered `T-18` bound) · views `V_ANOMALY_CUTOFF`/`V_ANOMALY_REFERENCE`/`V_ANOMALY_DETECT` · procedures `SP_TRAIN_ANOMALY_DETECTOR`, `SP_SCORE_ANOMALY`. **Deployed in `WIND_OPS_AI_DEV_NK` on `EXKFAFL-NW77746`, not yet on the team account (`I-14`)** |
 | ML objects | `RISK_CLASSIFIER` (`SNOWFLAKE.ML.CLASSIFICATION`) · `FEAT_COMPONENT_DAILY` (61,009 component-days, 1,259 positive) · `SCORE_COMPONENT_RISK` (400 scored) · `DRIVER_COMPONENT_RISK` (2,000 rows) · `ML_BASELINE_SPEC` (2 pre-registered baselines) · views `V_ML_SPLIT`/`V_ML_TRAIN`/`V_ML_TEST` · procedures `SP_BUILD_FEATURES`, `SP_TRAIN_RISK_CLASSIFIER`, `SP_EVALUATE_RISK_CLASSIFIER`, `SP_SCORE_COMPONENTS` |
 | OPS additions | `ML_RUN` (training runs) · `ML_METRIC` (held-out metrics for `T-87`) · `SP_RUN_ML_QUALITY` |
 | Semantic views, search services, agents, dynamic tables, anomaly detector | **None** |
 | Re-verified as *possible* on `JKDRJBB-MW27072` | `AI_COMPLETE('claude-sonnet-4-5')`, `AI_COMPLETE('llama3.1-8b')`, `SNOWFLAKE.CORTEX.COMPLETE`, `AI_EXTRACT`, `SNOWFLAKE.ML.CLASSIFICATION`, `ANOMALY_DETECTION`, `DOCUMENT_INTELLIGENCE`, `FORECAST`, `TOP_INSIGHTS`, `CREATE COMPUTE POOL`. Account params: `CORTEX_ENABLED_CROSS_REGION = ANY_REGION`, `ENABLE_CORTEX_ANALYST = true` |
 | **Still not proven** | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE DYNAMIC TABLE`, `CREATE AGENT`, `CREATE STREAMLIT`, `AI_PARSE_DOCUMENT`, `CREATE SERVICE`. Now that a database exists, these can be probed |
+| Newly proven | **`SNOWFLAKE.ML.ANOMALY_DETECTION` trains multi-series in one object, and `!DETECT_ANOMALIES()` works** (unlike the classifier's `!SHOW_FEATURE_IMPORTANCE()`). Constraint: every evaluation timestamp must fall **after** the last fitting timestamp |
 | Verified as **not** working | `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` (legacy names). `CREATE APPLICATION SERVICE` unavailable on trial accounts ([`ADR-0020`](docs/03-architecture/decisions/adr-0020-app-platform.md)) |
 | Untested | Notification integrations; MCP connector; `st.components` HTML inside SiS |
 | Other | `SNOWFLAKE_INTELLIGENCE` database does **not** exist — the agent needs `SNOWFLAKE_INTELLIGENCE.AGENTS` ([`04-code.md`](docs/03-architecture/04-code.md) §2) |
@@ -162,16 +169,19 @@ ADR or RAID reference, that is a defect.
 | **ML features read `RAW` directly**, not `CURATED`, because the curated layer does not exist yet. The matched-band control `US-9` calls for is satisfied by the generator writing `rpm_band`/`load_band` onto CMS rows | This row; revisit when `20_curate` lands |
 | **`T-11` freshness is grain-aware.** Daily-grain generator state cannot meet a 24h bar after midday, so it gets 48h while the fact surfaces an operator reads keep 24h | `sql/15_quality/02_assertions.sql` |
 
+| **The anomaly detector was verified on a DIFFERENT ACCOUNT.** `snow` was not installed locally and `connections.toml` has no `JKDRJBB-MW27072` entry, so the whole stack was re-deployed from the recipes into `WIND_OPS_AI_DEV_NK` on `EXKFAFL-NW77746` and verified there. Reproduction matched closely (108,317,900 signal rows vs 108,339,384; 58 failures; `T-10` 1.7647× vs 1.71×). **The team must re-run `just deploy-ml` on the deploy account before quoting these figures** | `I-14`; [`evidence/development/06`](docs/06-coco/evidence/development/06-anomaly-detector.md) §1 |
+| **`T-18`'s population is the detection window, not `SCORE_COMPONENT_RISK`.** The planner snapshot gave ρ = 0.216, which **passed**, but its risk variance is 1e-12 so the number described nothing. The population changed; the pre-registered bound did not. Both figures are in `OPS.ML_METRIC` so the claim is checkable | `I-13`; [`ml-models.md` §2.1](docs/05-ai-ml/ml-models.md#21-the-t-18-bound-and-what-it-is-measured-on) |
+| **`sql/25_ml/05_anomaly.sql` added**, and `ML.ML_INDEPENDENCE_SPEC` / `SCORE_COMPONENT_ANOMALY` registered as naming-convention instances of `04-code.md` §3 (`SCORE_<subject>`). No new deployment stage was needed | This row; `04-code.md` §3 |
+
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md`](docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md)
-— closes `Q-60` and `Q-53`, and **corrects entry 04's headline**. Three successive metric defects
-were found, each flattering a different side; the real result is **model component precision 1.000
-vs the trivial rule's 0.586 at identical recall 1.000** — 1.71× against a 1.25× bar, stable to zero
-spread over five retrainings. New `DQ-STABILITY` fails the build if the headline moves more than
-0.05, so a lucky run cannot be quoted.
+[`docs/06-coco/evidence/development/06-anomaly-detector.md`](docs/06-coco/evidence/development/06-anomaly-detector.md)
+— the second independent signal. `T-18` bound **pre-registered before measurement** at
+|Spearman ρ| ≤ 0.50, measured **0.222** over 48,801 component-days. Its degeneracy guard found
+**`I-13`** — every published risk score is ~0 — which no test aimed at it would have caught.
 
-Previous: [`development/04-risk-classifier.md`](docs/06-coco/evidence/development/04-risk-classifier.md)
-(partly superseded).
+Previous: [`development/05-t10-margin-and-operating-point.md`](docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md).
+The index at [`development/README.md`](docs/06-coco/evidence/development/README.md) now lists all six
+entries; entries 02–05 had never been indexed.
 
-Next entry goes in `docs/06-coco/evidence/development/06-<slug>.md`, after the anomaly detector.
+Next entry goes in `docs/06-coco/evidence/development/07-<slug>.md`.

@@ -57,6 +57,36 @@
 -- there and detect afterwards. The cutoff is DERIVED from the generator's own
 -- window start, never hardcoded, so it stays correct if the window moves.
 --
+-- ===================== WHICH POPULATION T-18 IS MEASURED ON ==================
+--
+-- Independence is measured over the WHOLE detection window — every
+-- component-day the detector scored, with the classifier re-predicted on the
+-- same rows — and not over ML.SCORE_COMPONENT_RISK.
+--
+-- That choice was forced by a defect this file's degeneracy guard found, and the
+-- ordering matters for honesty, so it is recorded plainly:
+--
+--   1. The first implementation joined SCORE_COMPONENT_RISK, the planner's
+--      snapshot. Spearman came out 0.2162 against the 0.50 bound — it PASSED.
+--   2. The guard failed the build anyway, because variance(risk_probability)
+--      over those 400 rows is 1e-12. Every published risk score is between
+--      0.000001 and 0.000007 and every component is banded MINIMAL.
+--   3. So the passing 0.2162 was meaningless: a correlation against a signal
+--      that does not vary describes nothing.
+--
+-- The population therefore changed; THE PRE-REGISTERED BOUND DID NOT. It is
+-- still |Spearman rho| <= 0.50, still read from ML.ML_INDEPENDENCE_SPEC rather
+-- than retyped. The reason for the change was a degenerate input, not an
+-- unfavourable result — the original number passed. Both numbers are recorded
+-- as metrics so a reviewer can check that claim instead of taking it on trust.
+--
+-- The underlying defect is NOT fixed here, because it is not this story's:
+-- SCORE_COMPONENT_RISK holds one row per component at its LATEST feature date,
+-- and at the end of the generated window almost nothing is within 30 days of
+-- failing. Over the detection window the same classifier has variance 0.0262
+-- and 1,326 component-days above p=0.50, so the model is sound and only the
+-- published snapshot is empty. Raised as I-13.
+--
 -- ===================== WHAT WE DO NOT CLAIM ==================================
 --
 -- This is not failure prediction and is never labelled as such (ml-models.md
@@ -273,6 +303,9 @@ declare
     pear         float;
     var_risk     float;
     var_anom     float;
+    snap_pairs   integer;
+    snap_rho     float;
+    snap_var     float;
 begin
     select max(run_id) into :run_id from OPS.ML_RUN where model_name = 'ANOMALY_DETECTOR';
     if (run_id is null) then
@@ -321,16 +354,39 @@ begin
     n_written := sqlrowcount;
     select count_if(is_anomaly) into :n_flagged from ML.ML_TMP_ANOMALY;
 
-    -- ---- the T-18 statistic, on the planner's population ----
+    -- ---- the T-18 statistic, over the whole detection window ----
+    -- The classifier is re-predicted on the same component-days the detector
+    -- scored, so both signals exist on every row and both actually vary. The
+    -- feature list is copied from 04_score_and_drivers.sql deliberately: join
+    -- keys must never reach the model, so object_construct is explicit and
+    -- never object_construct(*).
     create or replace temporary table ML.ML_TMP_INDEPENDENCE as
     select
-        r.component_id,
-        r.risk_probability,
+        f.component_id,
+        f.feature_date,
+        ML.RISK_CLASSIFIER!PREDICT(object_construct(
+            'COMPONENT_CLASS_CODE', f.component_class_code,
+            'PLATFORM_ID', f.platform_id,
+            'PRIMARY_MEAN', coalesce(f.primary_mean, 0),
+            'PRIMARY_P95', coalesce(f.primary_p95, 0),
+            'PRIMARY_VS_OWN_BASELINE', coalesce(f.primary_vs_own_baseline, 0),
+            'TREND_7D', coalesce(f.trend_7d, 0),
+            'TREND_14D', coalesce(f.trend_14d, 0),
+            'TREND_30D', coalesce(f.trend_30d, 0),
+            'TREND_ACCEL', coalesce(f.trend_accel, 0),
+            'THERMAL_RISE', coalesce(f.thermal_rise, 0),
+            'VIB_TEMP_DIVERGENCE', coalesce(f.vib_temp_divergence, 0),
+            'HOURS_HIGH_LOAD_7D', coalesce(f.hours_high_load_7d, 0),
+            'STARTS_7D', coalesce(f.starts_7d, 0),
+            'AGE_DAYS', f.age_days,
+            'SITE_STRESSOR_FACTOR', coalesce(f.site_stressor_factor, 1),
+            'DAYS_SINCE_INTERVENTION', coalesce(f.days_since_intervention, 0)
+        )):probability:"True"::float as risk_probability,
         a.anomaly_distance
-    from ML.SCORE_COMPONENT_RISK r
+    from ML.FEAT_COMPONENT_DAILY f
     join ML.SCORE_COMPONENT_ANOMALY a
-      on a.component_id = r.component_id
-     and a.scored_date  = r.scored_date;
+      on a.component_id = f.component_id
+     and a.scored_date  = f.feature_date;
 
     select count(*),
            variance(risk_probability),
@@ -339,10 +395,10 @@ begin
       from ML.ML_TMP_INDEPENDENCE;
 
     if (n_pairs = 0) then
-        return 'ABORTED: no component-dates where a risk score and an anomaly score coincide, '
+        return 'ABORTED: no component-dates where a risk prediction and an anomaly score coincide, '
             || 'so T-18 cannot be measured. Anomaly rows written: ' || n_written
-            || '. Remedy: confirm ML.SP_SCORE_COMPONENTS() ran and that its scored_date falls '
-            || 'inside the detection window.';
+            || '. Remedy: confirm ML.SP_BUILD_FEATURES() ran and that FEAT_COMPONENT_DAILY '
+            || 'covers the detection window.';
     end if;
 
     -- Spearman is Pearson on ranks. corr() over ranks is exact for the
@@ -356,6 +412,25 @@ begin
             rank() over (order by risk_probability) as rank_risk,
             rank() over (order by anomaly_distance) as rank_anom
         from ML.ML_TMP_INDEPENDENCE
+      );
+
+    -- The planner's snapshot, recorded for comparison and NOT gated on. This is
+    -- the population the first implementation used; keeping its number visible
+    -- is what lets a reviewer verify that the population changed because risk
+    -- variance collapsed to 1e-12, and not because the bound was missed.
+    select count(*), variance(r.risk_probability)
+      into :snap_pairs, :snap_var
+      from ML.SCORE_COMPONENT_RISK r
+      join ML.SCORE_COMPONENT_ANOMALY a
+        on a.component_id = r.component_id and a.scored_date = r.scored_date;
+
+    select corr(rank_risk, rank_anom) into :snap_rho
+      from (
+        select rank() over (order by r.risk_probability) as rank_risk,
+               rank() over (order by a.anomaly_distance) as rank_anom
+        from ML.SCORE_COMPONENT_RISK r
+        join ML.SCORE_COMPONENT_ANOMALY a
+          on a.component_id = r.component_id and a.scored_date = r.scored_date
       );
 
     delete from OPS.ML_METRIC where run_id = :run_id;
@@ -392,11 +467,22 @@ begin
     union all
     select :run_id, 'ANOMALY', 'variance_anomaly', round(:var_anom, 6),
            'degeneracy guard: a constant signal cannot be called independent',
+           current_timestamp()::timestamp_ntz
+    union all
+    select :run_id, 'ANOMALY', 'snapshot_spearman_vs_risk', round(:snap_rho, 6),
+           'NOT the verdict: the same statistic over SCORE_COMPONENT_RISK, the planner snapshot. Recorded so the population change is auditable',
+           current_timestamp()::timestamp_ntz
+    union all
+    select :run_id, 'ANOMALY', 'snapshot_variance_risk', :snap_var,
+           'WHY THE SNAPSHOT IS NOT USED (I-13): published risk variance over ' || coalesce(:snap_pairs::varchar, '0') || ' components. Near zero means every component is banded MINIMAL and the snapshot carries no signal to correlate against',
            current_timestamp()::timestamp_ntz;
 
     return 'ANOMALY scored for run ' || run_id || ': ' || n_written || ' component-days, '
-        || n_flagged || ' flagged. Independence over ' || n_pairs || ' pairs: Spearman '
+        || n_flagged || ' flagged. Independence over ' || n_pairs || ' component-days: Spearman '
         || coalesce(round(rho, 4)::varchar, 'NULL') || ' (bound 0.50), Pearson '
-        || coalesce(round(pear, 4)::varchar, 'NULL') || '.';
+        || coalesce(round(pear, 4)::varchar, 'NULL') || '. Planner snapshot for comparison: Spearman '
+        || coalesce(round(snap_rho, 4)::varchar, 'NULL') || ' over ' || coalesce(snap_pairs, 0)
+        || ' components, but published risk variance is ' || coalesce(snap_var::varchar, 'n/a')
+        || ' (see I-13).';
 end;
 $$;

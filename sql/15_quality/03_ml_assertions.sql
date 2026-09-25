@@ -2,7 +2,7 @@
 -- 15_quality / 03 — ML assertions                              STAGE: WOA_ADMIN
 -- =============================================================================
 -- Implements : the G2 test suite (data half of G1 is in 02_assertions.sql)
--- Proves     : T-10 (GATING), T-14, T-15, T-16 (GATING), T-17, T-19
+-- Proves     : T-10 (GATING), T-14, T-15, T-16 (GATING), T-17, T-18, T-19
 -- Authority  : docs/07-quality/testing-and-validation.md §2, §4
 -- Parameter  : <% database %>
 --
@@ -57,6 +57,22 @@
 -- probabilities broke arbitrarily. It was measurement noise, not model noise.
 -- DQ-STABILITY below asserts it stays gone.
 --
+-- ===================== THE T-18 BOUND (PRE-REGISTERED) =======================
+--
+-- Unlike Q-60, the T-18 bound was NOT left open until the first result. It is
+-- declared in sql/25_ml/05_anomaly.sql and committed before the correlation was
+-- ever computed: |Spearman rho| <= 0.50 between risk probability and anomaly
+-- distance, which at the bound leaves three quarters of each signal unexplained
+-- by the other. The full argument lives in that file's header and as a row in
+-- ML.ML_INDEPENDENCE_SPEC.
+--
+-- DQ-NON-COLLINEAR checks THREE things, because the obvious check is weak:
+--   1. |rho| <= 0.50                              (the pre-registered bound)
+--   2. rho is NOT NULL                            (a constant score would make
+--      it null and pass a naive check while carrying no information)
+--   3. both signals actually vary                 (same failure, caught at the
+--      source rather than through its symptom)
+--
 use role WOA_ADMIN;
 use database <% database %>;
 use warehouse WOA_BUILD_WH;
@@ -79,7 +95,11 @@ using (
         ('DQ-NO-ID-FEATURE', 'T-9',  'G2', 'No identifier column is a model feature',
             'Health as a function of primary key', false),
         ('DQ-STABILITY',     'T-10', 'G2', 'The headline comparison is stable across retrainings',
-            'Quoting a lucky run. The metric once swung 0.353..0.706 on identical code', false)
+            'Quoting a lucky run. The metric once swung 0.353..0.706 on identical code', false),
+        ('DQ-NON-COLLINEAR', 'T-18', 'G2', 'The classifier and the detector carry different information',
+            'Two models that are one model. The reference solution had correlation -1.0 by construction', false),
+        ('DQ-ANOMALY-COVERAGE','T-18','G2', 'The detector scored the detection window and its output is usable',
+            'An independence statistic computed over an empty or trivial population', false)
     as s(id, test_id, gate, title, prevents, gating)
 ) src
 on tgt.assertion_id = src.id
@@ -103,6 +123,13 @@ declare
     rnd_prec   float;
     m_tight    float;
     r_tight    float;
+    ad_run     varchar;
+    a_rho      float;
+    a_pear     float;
+    a_pairs    float;
+    a_var_r    float;
+    a_var_a    float;
+    a_bound    float;
 begin
     run_id := 'DQ-' || to_varchar(current_timestamp(), 'YYYYMMDDHH24MISS');
     select max(run_id) into :ml_run from OPS.ML_RUN where model_name = 'RISK_CLASSIFIER';
@@ -262,6 +289,60 @@ begin
         from information_schema.columns
         where table_schema = 'ML' and table_name = 'V_ML_TRAIN'
           and column_name in ('COMPONENT_ID', 'TURBINE_ID', 'FEATURE_DATE', 'PRIMARY_CHANNEL')
+    );
+
+    -- ---- T-18: the two signals must carry different information ----------
+    -- Read from the detector's own run, and the bound from the pre-registered
+    -- spec row rather than a literal here, so the number that gates the build
+    -- and the number that was pre-registered cannot drift apart.
+    select max(run_id) into :ad_run from OPS.ML_RUN where model_name = 'ANOMALY_DETECTOR';
+    select bound_abs into :a_bound from ML.ML_INDEPENDENCE_SPEC where spec_id = 'IND-RISK-VS-ANOMALY';
+
+    select metric_value into :a_rho    from OPS.ML_METRIC where run_id = :ad_run and metric_scope = 'ANOMALY' and metric_name = 'spearman_vs_risk';
+    select metric_value into :a_pear   from OPS.ML_METRIC where run_id = :ad_run and metric_scope = 'ANOMALY' and metric_name = 'pearson_vs_risk';
+    select metric_value into :a_pairs  from OPS.ML_METRIC where run_id = :ad_run and metric_scope = 'ANOMALY' and metric_name = 'independence_pairs';
+    select metric_value into :a_var_r  from OPS.ML_METRIC where run_id = :ad_run and metric_scope = 'ANOMALY' and metric_name = 'variance_risk';
+    select metric_value into :a_var_a  from OPS.ML_METRIC where run_id = :ad_run and metric_scope = 'ANOMALY' and metric_name = 'variance_anomaly';
+
+    insert into OPS.DQ_RESULT (run_id, assertion_id, test_id, run_at, passed, measured_value, threshold_value, detail)
+    select
+        :run_id, 'DQ-NON-COLLINEAR', 'T-18', current_timestamp()::timestamp_ntz,
+        -- Three conditions. Note the deliberate absence of coalesce(..., true):
+        -- a null correlation is a FAILURE here, not a benefit of the doubt.
+        coalesce(
+            (:a_rho is not null)
+            and (abs(:a_rho) <= :a_bound)
+            and (:a_var_r > 0) and (:a_var_a > 0),
+            false
+        ),
+        coalesce(round(abs(:a_rho), 4), -1), coalesce(:a_bound, 0.50),
+        case when :ad_run is null
+             then 'NO ANOMALY DETECTOR RUN RECORDED — run ML.SP_TRAIN_ANOMALY_DETECTOR() then ML.SP_SCORE_ANOMALY(). '
+             when :a_rho is null
+             then 'CORRELATION IS NULL, which fails: a constant signal is not an independent one. '
+             else '' end
+            || 'Spearman ' || coalesce(:a_rho::varchar, 'NULL')
+            || ' vs pre-registered bound ' || coalesce(:a_bound::varchar, '0.50')
+            || ' over ' || coalesce(:a_pairs::varchar, '0') || ' component pairs'
+            || ' (Pearson ' || coalesce(:a_pear::varchar, 'NULL') || ', context only).'
+            || ' Variance: risk ' || coalesce(:a_var_r::varchar, 'n/a')
+            || ', anomaly ' || coalesce(:a_var_a::varchar, 'n/a') || ' — both must exceed 0.';
+
+    -- ---- T-18 companion: the population must be real ---------------------
+    insert into OPS.DQ_RESULT (run_id, assertion_id, test_id, run_at, passed, measured_value, threshold_value, detail)
+    select
+        :run_id, 'DQ-ANOMALY-COVERAGE', 'T-18', current_timestamp()::timestamp_ntz,
+        n_scored > 0 and n_series >= 10 and coalesce(:a_pairs, 0) >= 1000,
+        n_scored, 1,
+        n_scored || ' component-days scored across ' || n_series || ' component series; '
+            || coalesce(:a_pairs::varchar, '0') || ' carry both a risk prediction and an anomaly score '
+            || '(need >=1000, or the correlation is measured on too little to mean anything). '
+            || n_flagged || ' flagged as anomalous.'
+    from (
+        select
+            (select count(*) from ML.SCORE_COMPONENT_ANOMALY) as n_scored,
+            (select count(distinct component_id) from ML.SCORE_COMPONENT_ANOMALY) as n_series,
+            (select count_if(is_anomaly) from ML.SCORE_COMPONENT_ANOMALY) as n_flagged
     );
 
     return 'ML quality run ' || run_id || ' complete';

@@ -38,6 +38,28 @@ failure"* or *"this is behaving oddly and I don't know why"* — those warrant d
 outright: its failure probability was a linear rescale of its health score, correlation −1.0 by
 construction, so its two "signals" carried identical information.
 
+### 2.1 The `T-18` bound, and what it is measured on
+
+`T-18` says "correlation below a stated bound" and the plan did not state one. It is now stated, and
+it was **pre-registered** — committed before the correlation was ever computed, the same discipline the
+two `T-10` baselines got:
+
+| | |
+| --- | --- |
+| **Bound** | **\|Spearman ρ\| ≤ 0.50** between risk probability and anomaly distance |
+| Why 0.50 | ρ = 0.50 means ρ² = 0.25 shared rank variance, so at the bound three quarters of each signal is unexplained by the other. Any bound below 1.0 excludes the reference solution; 0.50 also excludes the far larger family of "technically two models, practically one" |
+| Why Spearman | Risk probability is bounded and near-binary; anomaly distance is unbounded and long-tailed. Pearson across that pair measures tail shape as much as association. Pearson is recorded as context, never as the verdict |
+| A null ρ **fails** | A constant anomaly score would make ρ null and pass a naive bound check while carrying no information. `DQ-NON-COLLINEAR` therefore requires ρ to be non-null **and** both signals to vary |
+| Recorded as | A row in `ML.ML_INDEPENDENCE_SPEC` with `registered_before_evaluation = true`, so the ordering is auditable in data rather than only in git history |
+| **Measured** | **ρ = 0.222** over 48,801 component-days (2026-09-25). Pearson 0.078 |
+
+**The population is the whole detection window, not the planner's snapshot**, and the reason is
+recorded because it looks like goalpost-moving and is not. The first implementation used
+`SCORE_COMPONENT_RISK`; ρ came out 0.216 and **passed**, but the degeneracy guard failed the build
+because published risk variance is 1e-12 — every component banded `MINIMAL`. A correlation against a
+signal that does not vary describes nothing. The population changed; **the bound did not**. Both
+numbers are recorded as metrics so the claim is checkable. The underlying defect is `I-13`.
+
 ## 3. Features
 
 Built by `CMP-4` at `FEAT_COMPONENT_DAILY` grain, always **within matched operating bands**.
@@ -162,4 +184,4 @@ on screen and hope nobody asks.
 | `Q-52` | Is `H = 30` days right, or should there be two horizons (7 for urgency, 30 for planning)? Recommendation: one horizon; two doubles evaluation work | SA |
 | ~~`Q-53`~~ **CLOSED 2026-09-25** | What precision/recall operating point do we commit to? **Decided: `risk_probability >= 0.50`, evaluated at COMPONENT level on each component's best day.** The natural decision boundary, requiring no tuning, so it cannot be accused of having been fitted. On held-out data it flags 17 of 121 components, all 17 genuinely failing: precision 1.000, recall 1.000. Risk bands (HIGH >= 0.70, MEDIUM >= 0.30) remain for triage ORDER, not for the decision. The reported instability of 0.353..0.706 was measurement noise from ranking component-DAYS, and is gone | SA |
 | `Q-54` | Do we attempt per-prediction SHAP if time allows? Recommendation: only after every Must is done | SA |
-| `Q-55` | Does the anomaly detector run per component instance or per component class? Recommendation: per class, with instance as a feature — fewer models to train | SA |
+| `Q-55` | ~~Does the anomaly detector run per component instance or per component class?~~ **CLOSED 2026-09-25 — per component instance.** `SERIES_COLNAME = COMPONENT_ID`. The recorded recommendation was per class for one reason, "fewer models to train", and that reason does not survive the platform: `SNOWFLAKE.ML.ANOMALY_DETECTION` takes `SERIES_COLNAME` and builds **one** model object over all series, so per-instance costs exactly one model either way. With its only argument void, `FR-20`'s wording decides it — "unlike **itself** at matched operating conditions" | SA |
