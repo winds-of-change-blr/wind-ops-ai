@@ -32,7 +32,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Nobody mid-flight. `feat/sb/synthetic-data-generator` is in review, not in flight |
+| SB | `US-18`…`US-22` · `T-10`, `T-14`…`T-19` | `feat/sb/deploy-ml` | 2026-09-25 | ML layer: features, risk classifier, anomaly detector, drivers, held-out evaluation vs **both** baselines. `T-10` is the D4 decision point and the last thing `G1` waits on |
 
 ## 3. Next actions, in order
 
