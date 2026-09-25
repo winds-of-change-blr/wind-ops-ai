@@ -160,6 +160,6 @@ on screen and hope nobody asks.
 | ID | Question | Owner |
 | --- | --- | --- |
 | `Q-52` | Is `H = 30` days right, or should there be two horizons (7 for urgency, 30 for planning)? Recommendation: one horizon; two doubles evaluation work | SA |
-| `Q-53` | What precision/recall operating point do we commit to? Recommendation: set it after the first honest evaluation, not before (`Q-29`) | SA |
+| ~~`Q-53`~~ **CLOSED 2026-09-25** | What precision/recall operating point do we commit to? **Decided: `risk_probability >= 0.50`, evaluated at COMPONENT level on each component's best day.** The natural decision boundary, requiring no tuning, so it cannot be accused of having been fitted. On held-out data it flags 17 of 121 components, all 17 genuinely failing: precision 1.000, recall 1.000. Risk bands (HIGH >= 0.70, MEDIUM >= 0.30) remain for triage ORDER, not for the decision. The reported instability of 0.353..0.706 was measurement noise from ranking component-DAYS, and is gone | SA |
 | `Q-54` | Do we attempt per-prediction SHAP if time allows? Recommendation: only after every Must is done | SA |
 | `Q-55` | Does the anomaly detector run per component instance or per component class? Recommendation: per class, with instance as a feature — fewer models to train | SA |

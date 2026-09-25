@@ -217,9 +217,43 @@ deploy-data: _resolve-db
 
 # ML schema: train, evaluate, register. Writes metrics to OPS for T-15/T-17.
 # Must fail loudly if the model does not beat both baselines (T-10).
+#
+# IMPLEMENTED (US-18..US-21, T-10, T-14..T-17, T-19).
+#
+# Deploys the ML code, then runs features -> train -> evaluate -> score IN THAT
+# ORDER, then gates on the ML assertions. The order is not cosmetic: retraining
+# without re-evaluating leaves the newest model with no recorded metrics, which
+# makes T-10 unevaluable and T-87 unsatisfiable.
+#
+# The gate is OPS.SP_ASSERT_QUALITY_GATE, which RAISEs, so this recipe exits
+# non-zero if the model fails to beat BOTH pre-registered baselines. That is the
+# contract: ml-models.md §8 says "do not ship a rule labelled as a model", and a
+# deploy step that prints a failure and then succeeds would let us do exactly that.
 [doc('ML schema: train, evaluate, register. Fails if baselines are not beaten')]
 [group('snowflake')]
-deploy-ml: _resolve-db (_todo "deploy-ml" "US-13..US-17, T-10")
+deploy-ml horizon="30": _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n' "{{connection}}"
+    printf 'horizon    : %s days\n\n' "{{horizon}}"
+
+    for f in 00_baseline_spec 01_features 02_train 03_evaluate 04_score_and_drivers; do
+        printf '\n=== 25_ml/%s ===\n' "$f"
+        {{snow_sql}} -f "{{sql_dir}}/25_ml/${f}.sql" -D "database={{database}}"
+    done
+
+    printf '\n=== 15_quality/03_ml_assertions ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/03_ml_assertions.sql" -D "database={{database}}"
+
+    printf '\n=== run: features -> train -> evaluate -> score ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/25_ml/10_run_ml.sql" \
+        -D "database={{database}}" -D "horizon_days={{horizon}}"
+
+    printf '\n=== gate on the ML assertions (T-10 is gating) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/11_run_verify_ml.sql" -D "database={{database}}"
+
+    printf '\nML layer deployed and gated in %s.\n' "{{database}}"
 
 # ENGINE/ACTION: correlator, ranking, guards, approval-gated writes, audit.
 # Nothing here may grant an agent a write tool (AGENTS.md rule 2).
@@ -250,8 +284,8 @@ update *ARGS: _resolve-db (_todo "update" "US-44")
 # Implements: T-89 (a stranger can run it) · docs/07-quality
 #
 # IMPLEMENTED for the G1 data-quality suite (T-1, T-7, T-8, T-9, T-11, T-12,
-# T-13, T-62, T-64..T-67). The model, engine, agent and app gates land with
-# their own layers.
+# T-13, T-62, T-64..T-67) and the G2 model suite (T-10, T-14..T-17, T-19). The
+# engine, agent and app gates land with their own layers.
 #
 # Exits non-zero on a single failed assertion, via OPS.SP_ASSERT_QUALITY_GATE,
 # which RAISEs. A verify step that prints failures and then succeeds is the same
@@ -263,7 +297,15 @@ verify: _resolve-db
     set -euo pipefail
     printf 'database   : %s\n' "{{database}}"
     printf 'connection : %s\n\n' "{{connection}}"
+    printf '\n=== G1: data quality ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/10_run_verify.sql" -D "database={{database}}"
+
+    # Each suite gates itself, because OPS.SP_ASSERT_QUALITY_GATE checks the
+    # LATEST run in DQ_RESULT. Running both suites and then gating once would
+    # silently check only the second one.
+    printf '\n=== G2: model ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/11_run_verify_ml.sql" -D "database={{database}}"
+
     printf '\nverify passed against %s.\n' "{{database}}"
 
 # Generate/refresh synthetic data in the target. Deterministic seed (T-8).

@@ -16,7 +16,7 @@ One folder per phase. **One file per session** — never append to an existing e
 | Phase | Folder | Status |
 | --- | --- | --- |
 | Planning | [planning/](planning/) | **Complete** — 2 entries |
-| Development | [development/](development/README.md) | **In progress** — 3 entries |
+| Development | [development/](development/README.md) | **In progress** — 5 entries |
 | Execution | [execution/](execution/README.md) | Not started |
 | Testing | [testing/](testing/README.md) | Not started |
 
@@ -88,3 +88,5 @@ select 'warehouse', sum(credits_used)
 | 03 | Development | [01-foundation-setup.md](development/01-foundation-setup.md) | 2026-09-21 | 846 lines of setup/teardown SQL, 3 justfile recipes implemented. **Nothing deployed yet** — zero-DDL proof included |
 | 04 | Development | [02-data-layer-foundation.md](development/02-data-layer-foundation.md) | 2026-09-22 | Foundation deployed to `WIND_OPS_AI_DEV_KR`. 14 dimension + 7 fact tables created; all dimensions seeded (100 turbines, 1000 components, 4100 signals). `just deploy-data` recipe implemented |
 | 05 | Development | [03-synthetic-data-generator.md](development/03-synthetic-data-generator.md) | 2026-09-25 | The six-stage generator (`US-2`…`US-7`, `US-52`) and the `OPS` assertion suite — 13 SQL files, 2,904 lines, 108M signal rows, 16/16 assertions passing. Found the deploy account **empty** and entry 04's seed script **unrunnable**; `T-8` failed twice before the bad-batch population fixed it; `just seed` and `just verify` implemented |
+| 06 | Development | [04-risk-classifier.md](development/04-risk-classifier.md) | 2026-09-25 | The ML layer (`US-18`…`US-21`) — 8 SQL files, 1,549 lines. **`T-10` passes**: 1.40x the trivial rule's precision at a matched budget, and 0.35–0.71 vs 0.00 component recall at a tight one. Baselines **pre-registered in their own commit before training**. Found `COMPONENT_ID` being used as a feature, a lead-time measurement artifact, and that Snowflake does not enforce primary keys |
+| 07 | Development | [05-t10-margin-and-operating-point.md](development/05-t10-margin-and-operating-point.md) | 2026-09-25 | Closes `Q-60` and `Q-53`. **Corrects entry 06's headline**: three successive metric defects, each flattering a different side. The real result is model precision 1.000 vs rule 0.586 at identical recall — 1.71x, stable to zero spread over five retrainings. New `DQ-STABILITY` stops a lucky run being quoted |

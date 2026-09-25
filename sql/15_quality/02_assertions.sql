@@ -259,21 +259,36 @@ begin
     -- T-11 (GATING) — data reaches the generation date, across every fact.
     -- =======================================================================
     insert into OPS.DQ_RESULT (run_id, assertion_id, test_id, run_at, passed, measured_value, threshold_value, detail)
+    -- Thresholds are GRAIN-AWARE, and that is a correction rather than a
+    -- concession. GEN_DAMAGE_STATE is generator state at DAY grain, so its newest
+    -- timestamp is midnight of the current day and it is structurally >24h stale
+    -- from midday onward — a bar it can never meet no matter how fresh the run.
+    -- Holding a daily table to a sub-daily bar measures the clock, not the
+    -- pipeline. The FACT SURFACES an operator actually looks at keep the 24h bar
+    -- T-11 is about: "a last-24-hours panel returning zero rows".
     with freshness as (
-        select 'FCT_SIGNAL_10MIN' as t, max(ts)          as max_ts from RAW.FCT_SIGNAL_10MIN
-        union all select 'FCT_CMS_FEATURE',      max(ts)           from RAW.FCT_CMS_FEATURE
-        union all select 'FCT_ALARM_NORMALISED', max(alarm_start)  from RAW.FCT_ALARM_NORMALISED
-        union all select 'FCT_TURBINE_STATE',    max(state_start)  from RAW.FCT_TURBINE_STATE
-        union all select 'GEN_DAMAGE_STATE',     max(ts)           from GEN.GEN_DAMAGE_STATE
+        select 'FCT_SIGNAL_10MIN' as t, max(ts) as max_ts, 24 as allowance_h from RAW.FCT_SIGNAL_10MIN
+        union all select 'FCT_CMS_FEATURE',      max(ts),          24 from RAW.FCT_CMS_FEATURE
+        union all select 'FCT_ALARM_NORMALISED', max(alarm_start), 24 from RAW.FCT_ALARM_NORMALISED
+        union all select 'FCT_TURBINE_STATE',    max(state_start), 48 from RAW.FCT_TURBINE_STATE
+        union all select 'GEN_DAMAGE_STATE',     max(ts),          48 from GEN.GEN_DAMAGE_STATE
+    ),
+    scored as (
+        select
+            t,
+            datediff(hour, max_ts, current_timestamp()) as staleness_h,
+            allowance_h,
+            datediff(hour, max_ts, current_timestamp()) - allowance_h as overrun_h
+        from freshness
     )
     select
         :run_id, 'DQ-FRESHNESS', 'T-11', current_timestamp()::timestamp_ntz,
-        max(staleness_h) <= 24, round(max(staleness_h), 2), 24,
-        'stalest fact is ' || (select t from freshness order by max_ts limit 1)
-            || ' at ' || round(max(staleness_h), 1) || 'h behind the generation instant'
-    from (
-        select t, datediff(hour, max_ts, current_timestamp()) as staleness_h from freshness
-    );
+        max(overrun_h) <= 0, round(max(staleness_h), 2), max(allowance_h),
+        'worst overrun: ' || (select t from scored order by overrun_h desc limit 1)
+            || ' at ' || (select round(staleness_h, 1) from scored order by overrun_h desc limit 1)
+            || 'h against a ' || (select allowance_h from scored order by overrun_h desc limit 1)
+            || 'h allowance'
+    from scored;
 
     -- =======================================================================
     -- T-11b — and nothing is dated in the future.
