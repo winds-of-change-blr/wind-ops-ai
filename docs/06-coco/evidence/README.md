@@ -16,7 +16,7 @@ One folder per phase. **One file per session** — never append to an existing e
 | Phase | Folder | Status |
 | --- | --- | --- |
 | Planning | [planning/](planning/) | **Complete** — 2 entries |
-| Development | [development/](development/README.md) | **In progress** — 2 entries |
+| Development | [development/](development/README.md) | **In progress** — 3 entries |
 | Execution | [execution/](execution/README.md) | Not started |
 | Testing | [testing/](testing/README.md) | Not started |
 
@@ -87,3 +87,4 @@ select 'warehouse', sum(credits_used)
 | 02 | Planning | [02-app-platform-investigation.md](planning/02-app-platform-investigation.md) | 2026-09-18 | `ADR-0020`: App Runtime blocked on trial, Streamlit verified. Eight in-account capability probes |
 | 03 | Development | [01-foundation-setup.md](development/01-foundation-setup.md) | 2026-09-21 | 846 lines of setup/teardown SQL, 3 justfile recipes implemented. **Nothing deployed yet** — zero-DDL proof included |
 | 04 | Development | [02-data-layer-foundation.md](development/02-data-layer-foundation.md) | 2026-09-22 | Foundation deployed to `WIND_OPS_AI_DEV_KR`. 14 dimension + 7 fact tables created; all dimensions seeded (100 turbines, 1000 components, 4100 signals). `just deploy-data` recipe implemented |
+| 05 | Development | [03-synthetic-data-generator.md](development/03-synthetic-data-generator.md) | 2026-09-25 | The six-stage generator (`US-2`…`US-7`, `US-52`) and the `OPS` assertion suite — 13 SQL files, 2,904 lines, 108M signal rows, 16/16 assertions passing. Found the deploy account **empty** and entry 04's seed script **unrunnable**; `T-8` failed twice before the bad-batch population fixed it; `just seed` and `just verify` implemented |
