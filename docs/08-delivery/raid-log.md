@@ -188,7 +188,7 @@ Seventy-two, grouped by what they block. **Blocking** means work stops without a
 | `Q-47` | Feature grain — daily or hourly? | SA |
 | `Q-48` | Model curtailment separately from grid outage? | JP |
 | `Q-52` | One horizon or two? | SA |
-| `Q-53` | Which precision/recall operating point? | SA |
+| ~~`Q-53`~~ **CLOSED 2026-09-25** | Which precision/recall operating point? **`p >= 0.50` at component level** — see [`ml-models.md`](../05-ai-ml/ml-models.md) §10 | SA |
 | `Q-54` | Attempt per-prediction SHAP? | SA |
 | `Q-55` | Anomaly detector per instance or per class? | SA |
 
@@ -205,7 +205,7 @@ Seventy-two, grouped by what they block. **Blocking** means work stops without a
 | `Q-57` | May the agent propose a suppression? | NK |
 | `Q-58` | Which skills do we publish? | NK |
 | `Q-59` | Validator: parse SQL, hard read-only role, or both? | NK |
-| `Q-60` | Margin for "beats the trivial rule"? | SA |
+| ~~`Q-60`~~ **CLOSED 2026-09-25** | Margin for "beats the trivial rule"? **>=1.25x component precision at no-lower recall**; measured 1.71x — see [`testing-and-validation.md`](../07-quality/testing-and-validation.md) §open questions | SA |
 | `Q-61` | Can `T-24` parity be fully automated? | JP |
 | `Q-62` | Adversarial suite per change or per milestone? | SA |
 | `Q-63` | Are 59 tests realistic at this capacity? | NK |

@@ -268,7 +268,7 @@ dashboard over an unlearnable dataset is how the reference solution ended up whe
 
 | ID | Question | Owner |
 | --- | --- | --- |
-| `Q-60` | What margin defines "beats the trivial rule" in `T-10`? Recommendation: set it after the first honest evaluation (`Q-29`, `Q-53`) | SA |
+| ~~`Q-60`~~ **CLOSED 2026-09-25** | What margin defines "beats the trivial rule" in `T-10`? **Decided: model component precision >= 1.25x the rule's, at recall no lower than the rule's, and >= 3x random.** Measured 1.71x (model 1.000 vs rule 0.586 at identical recall 1.000), stable to zero spread over five retrainings. 1.25x was chosen as a margin a maintenance manager would recognise (a quarter fewer wasted truck rolls at equal detection) and deliberately NOT set just below the observed value. Encoded in `sql/15_quality/03_ml_assertions.sql` | SA |
 | `Q-61` | Can `T-24` metric parity be fully automated, given the agent path is non-deterministic? Recommendation: automate via a verified query; spot-check the free-text path | JP |
 | `Q-62` | Do we run the adversarial suite on every change or once per milestone? Recommendation: once per milestone — it costs credits | SA |
 | `Q-63` | With 90 person-hours, is 59 tests realistic? Recommendation: the 12 gating tests are non-negotiable; the rest degrade to a manual checklist | NK |

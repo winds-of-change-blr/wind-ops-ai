@@ -14,7 +14,7 @@ Full protocol in [`AGENTS.md`](AGENTS.md#session-protocol).
 | Gate | State | Blocking |
 | --- | --- | --- |
 | **G1** — data is honest (D4) | **PASSED** — 16/16 data assertions green **and `T-10` passes** | — |
-| **G2** — the model is real (D9) | **Nearly passed** — classifier trained, `T-10`/`T-14`…`T-17`/`T-19` green. Missing the anomaly detector (`US-22`, `T-18`) and `T-94`'s surface | `US-22`; `T-94` needs the app |
+| **G2** — the model is real (D9) | **Nearly passed** — 8 ML assertions green incl. `T-10` at **1.71×** the trivial rule and a stability bound. Missing the anomaly detector (`US-22`, `T-18`) and `T-94`'s surface | `US-22`; `T-94` needs the app |
 | **G3** — answers are trustworthy (D9) | Not started | G2 |
 | **G4** — actions are safe (D12) | Not started | — |
 | **G5** — demo-ready and submittable (D15) | Not started | all |
@@ -56,8 +56,7 @@ just the next three things, each with the ID that proves it done.
 | `Q-78` | `WOA_SCHEDULER` — which role do automations run as? | NK | D1, `NFR-3` |
 | `Q-90` | Which practitioner takes the D2 sanity-check call? | NK | D2, scenario credibility |
 | `Q-6` | Fourth team member — confirmed or not? | NK | capacity (`R-1`) |
-| `Q-60` | The `T-10` margin. A **recommendation is now in code** (≥3× random precision, ≥1.2× rule precision, and strictly better component recall at the tight budget) after the first honest run. NK owns the decision | NK | the `T-10` claim on the deck |
-| `Q-53` | The operating point for precision/recall. Tight-budget recall varies **0.35–0.71** between training runs, so any single quoted figure would be cherry-picked | SA | `T-94`, deck slide 9 |
+| `Q-84` | The model scores **precision 1.000 / PR-AUC 0.988** on held-out data. No leakage found (observable-only features, component-disjoint split, `DQ-NO-ID-FEATURE` green), so the honest reading is that the **generator's damage→feature mapping is too clean** — `ADR-0006`'s honesty constraint prescribes more noise. Whose call, and before or after the metric layer? | SA | the strength of the `T-10` claim |
 
 Full register: [`raid-log.md`](docs/08-delivery/raid-log.md). Only list here what blocks *the next
 action*; the RAID log holds the rest.
@@ -148,19 +147,22 @@ ADR or RAID reference, that is a defect.
 | **`sql/25_ml/` added** as a deployment stage, and the ML layer is **set-based SQL, not the Snowpark `python/ml/`** the code layout anticipates. `ADR-0007` already chose `SNOWFLAKE.ML.CLASSIFICATION`, `04-code.md` §9 says engine logic stays in SQL, and the features are aggregates over 108M rows that need not leave the warehouse | [`04-code.md`](docs/03-architecture/04-code.md) §7 **needs updating or an ADR**, same as the generator row above |
 | **Drivers are NOT model feature importances.** `RISK_CLASSIFIER!SHOW_FEATURE_IMPORTANCE()` and `!SHOW_EVALUATION_METRICS()` both error in this account (reproduced on a clean probe model). Importance is a **train-split standardised mean difference**, and every row records `IMPORTANCE_METHOD` so nothing can present it as a per-prediction attribution. Weaker than [`ml-models.md`](docs/05-ai-ml/ml-models.md) §6 specifies | [`evidence/development/04`](docs/06-coco/evidence/development/04-risk-classifier.md) §5 |
 | **`T-10` is judged at TWO operating points, not one.** At the trivial rule's own budget both methods reach 100% component recall, so that comparison discriminates nothing; a tight operational budget (2 alerts per failing component) was added and carries the verdict | `sql/15_quality/03_ml_assertions.sql` header; `Q-60` in §4 |
-| **`SNOWFLAKE.ML.CLASSIFICATION` is not bit-deterministic across training runs.** Tight-budget component recall measured 0.706 then 0.353; PR-AUC 0.991 then 0.988. `T-19` still holds because it fixes the model version. **Do not quote a single tight-budget figure** | `Q-53` in §4; [`evidence/development/04`](docs/06-coco/evidence/development/04-risk-classifier.md) §5 |
+| ~~`SNOWFLAKE.ML.CLASSIFICATION` is not bit-deterministic~~ — **withdrawn.** The 0.353–0.706 swing was **measurement noise from ranking component-DAYS**, not model noise. With the component-level metric the spread is **zero across five retrainings**, and `DQ-STABILITY` now fails the build if it exceeds 0.05 | [`evidence/development/05`](docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md) §5 |
+| **`Q-60` and `Q-53` are CLOSED**, in the docs rather than only in code. `T-10` margin: model component precision ≥1.25× the rule's at no-lower recall and ≥3× random (measured **1.71×**). Operating point: `p >= 0.50` at component level | [`ml-models.md`](docs/05-ai-ml/ml-models.md) §10, [`testing-and-validation.md`](docs/07-quality/testing-and-validation.md), [`raid-log.md`](docs/08-delivery/raid-log.md) |
+| **The model may be too good for the data to be credible.** Precision 1.000 / PR-AUC 0.988 with no leakage found. The remedy is more generator noise (`ADR-0006` honesty constraint), not model changes | `Q-84` in §4; [`evidence/development/05`](docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md) §5 |
 | **ML features read `RAW` directly**, not `CURATED`, because the curated layer does not exist yet. The matched-band control `US-9` calls for is satisfied by the generator writing `rpm_band`/`load_band` onto CMS rows | This row; revisit when `20_curate` lands |
 | **`T-11` freshness is grain-aware.** Daily-grain generator state cannot meet a 24h bar after midday, so it gets 48h while the fact surfaces an operator reads keep 24h | `sql/15_quality/02_assertions.sql` |
 
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/04-risk-classifier.md`](docs/06-coco/evidence/development/04-risk-classifier.md)
-— the ML layer (`US-18`…`US-21`): 8 SQL files, 1,549 lines. **`T-10` passes** — 1.40× the trivial
-rule's precision at a matched alert budget, and 0.35–0.71 against 0.00 component recall at a tight
-one. The two baselines were **pre-registered in their own commit (`5b94f24`) before any training
-code existed**. Found `COMPONENT_ID` being fed to the model as a feature, a lead-time measurement
-artifact reporting exactly 30 days, and that Snowflake does not enforce declared primary keys.
+[`docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md`](docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md)
+— closes `Q-60` and `Q-53`, and **corrects entry 04's headline**. Three successive metric defects
+were found, each flattering a different side; the real result is **model component precision 1.000
+vs the trivial rule's 0.586 at identical recall 1.000** — 1.71× against a 1.25× bar, stable to zero
+spread over five retrainings. New `DQ-STABILITY` fails the build if the headline moves more than
+0.05, so a lucky run cannot be quoted.
 
-Previous: [`development/03-synthetic-data-generator.md`](docs/06-coco/evidence/development/03-synthetic-data-generator.md).
+Previous: [`development/04-risk-classifier.md`](docs/06-coco/evidence/development/04-risk-classifier.md)
+(partly superseded).
 
-Next entry goes in `docs/06-coco/evidence/development/05-<slug>.md`, after the anomaly detector.
+Next entry goes in `docs/06-coco/evidence/development/06-<slug>.md`, after the anomaly detector.

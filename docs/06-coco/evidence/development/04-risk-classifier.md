@@ -1,5 +1,15 @@
 # Development 04 — the risk classifier, and the baseline that judges it
 
+> ### ⚠️ PARTLY SUPERSEDED — read [`05-t10-margin-and-operating-point.md`](05-t10-margin-and-operating-point.md)
+>
+> The tight-budget figures in §3 of this entry (*"model 0.353–0.706 vs rule 0.000"*) are **wrong**.
+> They came from ranking component-DAYS and from restricting the rule to its own shortlist. The
+> corrected comparison at component level is **model precision 1.000 vs rule 0.586 at identical
+> recall 1.000** — a 1.71× advantage, stable to zero spread over five retrainings. `T-10` still
+> passes, but on *fewer wasted visits at equal detection*, not on *finding failures the rule
+> misses*. Entry 05 has the corrected numbers, the mechanism, and the closure of `Q-60`/`Q-53`.
+> Nothing else in this entry is affected.
+
 > **Phase:** Development · **Date:** 2026-09-25 · **Author:** SB
 > **Story IDs:** `US-18`…`US-21`
 > **Tests:** `T-10` (gating), `T-14`, `T-15`, `T-16` (gating), `T-17`, `T-19`, `T-9` extension
