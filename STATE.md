@@ -56,7 +56,16 @@ just the next three things, each with the ID that proves it done.
 | `Q-78` | `WOA_SCHEDULER` — which role do automations run as? | NK | D1, `NFR-3` |
 | `Q-90` | Which practitioner takes the D2 sanity-check call? | NK | D2, scenario credibility |
 | `Q-6` | Fourth team member — confirmed or not? | NK | capacity (`R-1`) |
-| `Q-84` | The model scores **precision 1.000 / PR-AUC 0.988** on held-out data. No leakage found (observable-only features, component-disjoint split, `DQ-NO-ID-FEATURE` green), so the honest reading is that the **generator's damage→feature mapping is too clean** — `ADR-0006`'s honesty constraint prescribes more noise. Whose call, and before or after the metric layer? | SA | the strength of the `T-10` claim |
+| `Q-84` | The model scores **precision 1.000 / PR-AUC 0.988** on held-out data with no leakage found, so the **generator's damage→feature mapping is too clean** (`ADR-0006` honesty constraint). Raise generator noise, and re-run `T-8` and `T-10` together — they pull in opposite directions | SA | the credibility of the `T-10` claim |
+
+**Deferred, tracked, not blocking the next action.** Six issues and two risks were logged from the
+generator and ML work: `I-7` (model too good for the data), `I-8` (drivers are not model feature
+importances — the platform accessors error), `I-9` (`04-code.md` §7 expects `python/`, we built
+SQL), `I-10` (ML features read `RAW`, not `CURATED`), `I-11` (`just pr --fill` mis-titles
+multi-commit PRs), `I-12` (`T-94`/`T-86`/`T-87` have numbers but no surface, so `G5` is blocked
+behind `deploy-app`), plus `R-30` (trial-account objects do not survive — rehearse the ~15 min
+recovery before the demo) and `R-31` (CoCo and the CLI are on different accounts, so cost must
+always be summed across both). Full detail in [`raid-log.md`](docs/08-delivery/raid-log.md).
 
 Full register: [`raid-log.md`](docs/08-delivery/raid-log.md). Only list here what blocks *the next
 action*; the RAID log holds the rest.
