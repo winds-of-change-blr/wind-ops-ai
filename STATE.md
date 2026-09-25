@@ -33,7 +33,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Nobody mid-flight. `feat/sb/deploy-ml` is in review |
+| NK | `US-22`, `T-18` — the anomaly detector | `feat/nk/anomaly-detector` | 2026-09-25 | Closes the second signal `G2` needs. Also takes `Q-55` (series granularity) and states the `T-18` bound, which the plan never fixed |
 
 ## 3. Next actions, in order
 
