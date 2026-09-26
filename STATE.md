@@ -21,11 +21,11 @@ called the agent work "`G3`"; the plan's `G3` is **the numbers**, and that was n
 | **G1** — data is worth modelling (D4) | **PASSED** — 16 assertions | — |
 | **G2** — the model is real (D9) | **PASSED** — 13 assertions: `T-10` **1.76×**, `T-18` ρ **0.243**, **`T-87`** (scores come from the run the app displays), **`T-94`** (the rule-vs-model comparison reconciles to that run) | — |
 | **G3** — the numbers are trustworthy (D9) | **PASSED** — 10 assertions, 7 gating: hand-worked fixtures **`T-20`** (availability, 95→97% step), **`T-21`** (lost energy), **`T-22`** (LD = ₹260,959, the business case's ≈ ₹2.6 L); **`T-23`** OEE = A × P on all 100 turbines; **`T-24`** semantic view = metric views on 6 metrics; **`T-25`** no constant factor; `GS-5` caught | the agent leg of `T-24` is shown in evidence, not gated (needs a model call) |
-| **G4** — action is safe (D12) | **PASSED (except the incident half of `T-74`)** — approval core (evidence 09), **`T-47`**, **`T-48`**, **`T-33`** × 3 roles; and the **window engine** (evidence 11): **`T-71`** (gating: every suggested window, crew and part is a feasible engine row), **`T-31`** (gating: every feasible window re-derived from source), no double-booking (gating), `T-72` binding constraint, `T-75` impact reconciles, `GS-3` crane campaign, `T-74` accept/reject half | `T-74` incident half (confirm/dismiss/reinstate), `T-76` behavioural half (no scheduled task), `T-73` free-text constraints (not built) |
+| **G4** — action is safe (D12) | **PASSED (except the incident half of `T-74`)** — approval core (evidence 09), **`T-47`**, **`T-48`**, **`T-33`** × 3 roles; and the **window engine** (evidence 11): **`T-71`** (gating: every suggested window, crew and part is a feasible engine row), **`T-31`** (gating: every feasible window re-derived from source), no double-booking (gating), `T-72` binding constraint, `T-75` impact reconciles, `GS-3` crane campaign, `T-74` accept/reject half; and the **incident evidence** (evidence 12): **`T-68`** (gating: 4 stored evidence rows per incident, consistent with its class), **`T-61`** (gating: every `UNDETERMINED` incident in one queue below actionable, rate published, never suppressed), `I-19` closed | `T-74` incident half (confirm/dismiss/reinstate), `T-76` behavioural half (no scheduled task), `T-73` free-text constraints (not built) |
 | **G5** — demo-ready (D15) | **Built, not yet submittable** — app with OEE, writes and *Audit*; **`T-86`** funnel reconciles (every one of 340,431 alarms in exactly one incident); **`T-92`/`T-95`** `just results` generates `docs/08-delivery/results.md`; `T-52` see §7; `T-37`/`T-42` answer-quality checks | README (`T-89`), walkthrough (`T-90`), deck, `T-93` |
 
-`just verify` runs **seven** suites — **16 data + 10 ML + 5 engine + 5 answers + 10 numbers + 12 action + 7 planning
-= 65 assertions**, plus the behavioural role checks (`T-33` × 3 roles, `T-47` × 5 statements) — and exits non-zero
+`just verify` runs **seven** suites — **16 data + 10 ML + 11 engine + 5 answers + 10 numbers + 13 action + 7 planning
+= 72 assertions**, plus the behavioural role checks (`T-33` × 3 roles, `T-47` × 5 statements) — and exits non-zero
 on any failure. `just results` prints the same tally from `OPS`.
 
 ## 2. In flight — claim before you start
@@ -36,7 +36,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| SB | D10 incident evidence: `FR-70`/`ADR-0017` evidence rows (`T-68`), `UNDETERMINED` never hidden and rate published (`T-61`) | `feat/sb/incident-evidence` | 2026-09-26 | Built and verified on `WIND_OPS_AI_DEV_SB` (`JKDRJBB-MW27072`); NK's window-engine row cleared — PR #12 merged |
+| SB | D10 incident evidence: `FR-63`/`ADR-0017` evidence rows (`T-68`), `FR-64`, `UNDETERMINED` never hidden and rate published (`T-61`) | `feat/sb/incident-evidence` | 2026-09-26 | Built and verified on `WIND_OPS_AI_DEV_SB` (`JKDRJBB-MW27072`); NK's window-engine row cleared — PR #12 merged |
 
 ## 3. Next actions, in order
 
@@ -54,7 +54,7 @@ are independent and should run in parallel across the team.**
    (adversarial agent probes `T-43`…`T-46`, including asking the agent to invent a slot for `T-71`'s adversarial
    half; degraded modes `T-45`, `T-98`).
 
-Then: fold risk into `ENG_INCIDENT.is_elevated` (`I-19`); verified queries for `VQ-1`, `VQ-4`, `VQ-5`, `VQ-7`,
+Then: verified queries for `VQ-1`, `VQ-4`, `VQ-5`, `VQ-7`,
 `VQ-8`; `T-74` incident decision paths; `T-73` free-text constraints; a scheduled task + digest (`T-76`, `T-77`);
 curated layer + one dynamic table (`M12`); widen detector coverage (`I-15`); `just cost` and `just update` are
 still placeholders.
@@ -103,7 +103,7 @@ action*; the RAID log holds the rest.
 | CURATED | **`AGG_TURBINE_DAY`** (18,400 turbine-days from the 10-minute signals). First object in `CURATED` |
 | DOCS | `MAINTENANCE_DOCS` stage (SSE, **11 PDFs**) · `DOC_PARSED` (11) · `DOC_CHUNK` (**53 section chunks**) · `DOC_PART_PROCEDURE` (13 parts → procedure) · `SP_PARSE_DOCUMENTS` · **`CSS_MAINTENANCE_DOCS`** (Cortex Search) |
 | GEN | **`WOA_OPS_AGENT`** — Cortex Agent, `claude-sonnet-4-5`, two read-only tools (`fleet_data` → `SV_WIND_OPS`, `maintenance_docs` → `CSS_MAINTENANCE_DOCS`) |
-| ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` · **`ENG_WINDOW_CANDIDATE`** (1,008 windows, 174 feasible, six constraint columns each) · **`ENG_SUGGESTION`** / **`ENG_SUGGESTION_ITEM`** (1 bundle, 3 single jobs, 1 infeasible) · `ENG_PLAN_IMPACT` · `SP_BUILD_WINDOW_CANDIDATES`, `SP_BUILD_SUGGESTIONS` |
+| ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` · **`ENG_WINDOW_CANDIDATE`** (1,008 windows, 174 feasible, six constraint columns each) · **`ENG_SUGGESTION`** / **`ENG_SUGGESTION_ITEM`** (1 bundle, 3 single jobs, 1 infeasible) · `ENG_PLAN_IMPACT` · `SP_BUILD_WINDOW_CANDIDATES`, `SP_BUILD_SUGGESTIONS` · *Not yet here — built and verified only on `JKDRJBB-MW27072` `WIND_OPS_AI_DEV_SB` (evidence 12), and live on this account after `just deploy-engine deploy-action deploy-app`:* **`ENG_INCIDENT_EVIDENCE`** (4 rows per incident) · **`ENG_OPERATOR_QUEUE`** |
 | ACTION | `AUD_ACTION` (append-only audit, refusals included) · `ACT_SUPPRESSION` · `ACT_WORK_ORDER_DRAFT` · `ACT_WORK_ORDER` · `ACT_DECISION` · `ACT_V_SUPPRESSION_ACTIVE` · five owner's-rights procedures (`SP_APPROVE_SUPPRESSION`, `SP_REVOKE_SUPPRESSION` → `WOA_RMC`; `SP_DRAFT_WORK_ORDER`, `SP_APPROVE_WORK_ORDER`, `SP_REJECT_WORK_ORDER_DRAFT` → `WOA_PLANNER`). Self-test rows are marked `IS_SELFTEST` and hidden by the app · **`SP_ACCEPT_SUGGESTION`**, **`SP_REJECT_SUGGESTION`** (`WOA_PLANNER`); drafts gain `window_id`, `window_start`, `window_end`, `suggestion_id` |
 | OPS | `DQ_ASSERTION` (**65**) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · seven `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` · `OPS_TEST_HOOK` (`FAIL_AUDIT`, **off**; asserted) |
 | APP | **`WOA_COMMAND_CENTER`** — Streamlit, **warehouse runtime** `SYSTEM$WAREHOUSE_RUNTIME`, Streamlit 1.52.2 from the Anaconda channel, warehouse `WOA_APP_WH`, source on `APP.WOA_APP_STAGE`. 5 tabs; writes via the ACTION procedures only |
@@ -187,13 +187,16 @@ ADR or RAID reference, that is a defect.
 | **Bundling is greedy, not optimal**: crane jobs at one site with one crane team, highest loss first, at the earliest day all fit back to back. A cheaper plan may exist; this one is feasible and explained | `sql/40_engine/04_suggestions.sql` header |
 | **Accepting a suggestion schedules existing drafts; it does not create them.** Each component needs a draft first, so accept reuses the draft's evidence and refusals instead of a second drafting path | `sql/50_action/04_planning_procedures.sql` header |
 | **`T-73` (free-text constraints) is not built**, and the incident confirm/dismiss/reinstate half of `T-74` is not built | NK's scope choice for this round |
+| **D10 was built and verified on `JKDRJBB-MW27072`, not the working account `BGTCHIX-UZ86048`.** SB has no `BGTCHIX` credential; the full stack was rebuilt from the recipes into `WIND_OPS_AI_DEV_SB` first (65/65), then D10 on top (72/72). Nothing on `BGTCHIX` changed and none of its budget was spent | §5 ENGINE row; [`evidence/development/12`](docs/06-coco/evidence/development/12-incident-evidence.md) §1 and §6 |
+| **`NUISANCE` needs three more things than ADR-0017 lists**: a matched-load reading that exists and is not above normal, and no MEDIUM/HIGH risk on the component on the day or on the turbine from an earlier score. Each only makes nuisance harder. Measured: they blocked 2 of 35 (both `I-19`) | `sql/40_engine/01_alarm_incidents.sql` header; evidence 12 §5 |
 
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/11-window-engine.md`](docs/06-coco/evidence/development/11-window-engine.md)
-— the maintenance-window engine: 1,008 candidate windows with six constraint columns each, a TN-TVL crane
-campaign that saves one mobilisation, and an MH-STR bearing the engine refuses to schedule because the part lands
-after the horizon. `T-71` and `T-31` gating; accept/reject through the action service. `verify` is 65/65.
+[`docs/06-coco/evidence/development/12-incident-evidence.md`](docs/06-coco/evidence/development/12-incident-evidence.md)
+— ADR-0017's four evidence channels stored per incident (63,748 rows = 15,937 × 4), a single operator
+queue with `UNDETERMINED` ranked below actionable and never truncated silently, and `I-19` closed (2
+nuisance calls on a HIGH-risk turbine are now `UNDETERMINED`). `T-68` and `T-61` gating, every new
+check mutation-tested. `verify` is 72/72 on `JKDRJBB-MW27072`.
 
-Previous: [`development/10-numbers-and-clean-builds.md`](docs/06-coco/evidence/development/10-numbers-and-clean-builds.md).
-Next entry goes in `docs/06-coco/evidence/development/12-<slug>.md`.
+Previous: [`development/11-window-engine.md`](docs/06-coco/evidence/development/11-window-engine.md).
+Next entry goes in `docs/06-coco/evidence/development/13-<slug>.md`.

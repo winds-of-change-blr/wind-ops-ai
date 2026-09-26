@@ -1,7 +1,7 @@
 # Dataflow — as built
 
-> **Status:** As built at `main` `33cad1c` · **Last updated:** 2026-09-26 · **Verified against:**
-> `WIND_OPS_AI_DEV_SB` on `JKDRJBB-MW27072` (`just verify` 65/65)
+> **Status:** As built at `main` `33cad1c` + D10 incident evidence · **Last updated:** 2026-09-26 · **Verified against:**
+> `WIND_OPS_AI_DEV_SB` on `JKDRJBB-MW27072` (`just verify` 72/72)
 
 The C4 diagrams in [`01-context`](01-context.md), [`02-container`](02-container.md) and
 [`03-component`](03-component.md) describe **what we planned**. This page describes **what exists**:
@@ -24,7 +24,7 @@ flowchart LR
     AG(["<b>Cortex Agent</b><br/>read-only"])
     APP["<b>Streamlit app</b><br/>5 tabs"]
     ACT[("<b>ACTION</b><br/>approval-gated writes<br/>+ audit")]
-    OPS["<b>OPS</b><br/>65 assertions · 7 gates"]
+    OPS["<b>OPS</b><br/>72 assertions · 7 gates"]
 
     SRC --> RAW --> ML --> ENG
     RAW --> ENG
@@ -92,16 +92,19 @@ flowchart LR
     %% ---------- engines ----------
     subgraph ENG["ENGINE — SQL procedures"]
         direction TB
-        INC["SP_BUILD_INCIDENTS → ENG_INCIDENT<br/>ENG_SUPPRESSED_FAILURE"]
+        INC["SP_BUILD_INCIDENTS → ENG_INCIDENT<br/>ENG_INCIDENT_EVIDENCE (4 channels)<br/>ENG_SUPPRESSED_FAILURE"]
+        QUE["ENG_OPERATOR_QUEUE<br/>actionable, then undetermined"]
         FUN["ENG_ALARM_FUNNEL / _DAILY"]
         RANK["ENG_ALERT_RANKED<br/>money-ranked triage"]
         WIN["SP_BUILD_WINDOW_CANDIDATES<br/>→ ENG_WINDOW_CANDIDATE (1,008)"]
         SUG["SP_BUILD_SUGGESTIONS<br/>→ ENG_SUGGESTION / _ITEM<br/>ENG_PLAN_IMPACT"]
         INC --> FUN
+        INC --> QUE
         RANK --> WIN --> SUG
     end
     ALM --> INC
     ASCORE --> INC
+    FEAT & SCORE --> INC
     SCORE & ASCORE --> RANK
     DIMS --> RANK
     PLANIN --> WIN
@@ -150,7 +153,7 @@ flowchart LR
     %% ---------- quality ----------
     subgraph OPS["OPS — evidence and gates"]
         OPSM["ML_RUN · ML_METRIC"]
-        DQ["DQ_ASSERTION (65) · DQ_RESULT<br/>SP_RUN_*_QUALITY · SP_ASSERT_QUALITY_GATE"]
+        DQ["DQ_ASSERTION (72) · DQ_RESULT<br/>SP_RUN_*_QUALITY · SP_ASSERT_QUALITY_GATE"]
     end
     CLF & AD --> OPSM
 
@@ -163,7 +166,7 @@ flowchart LR
         T4["Fleet & contracts"]
         T5["Audit"]
     end
-    INC & FUN --> T1
+    QUE & FUN --> T1
     RANK & SCORE & ASCORE & SUG & WIN --> T2
     T1 & T2 -- "approve / draft / accept" --> SP
     ACTT --> T2
@@ -194,13 +197,13 @@ runs all seven suites and exits non-zero on any failure.
 | Landing | `RAW` | `just deploy-data`, `just seed` | Dimensions, 10-min SCADA signals (long table, 4,100 tags), CMS features, normalised alarms, work orders, planning context | `G1` |
 | Curated | `CURATED` | `SERVING.SP_BUILD_TURBINE_DAY` | `AGG_TURBINE_DAY` only | `G3` numbers |
 | ML | `ML` | `just deploy-ml` → `sql/25_ml/` | Features, split views, classifier, anomaly detector, scores and drivers | `G2` — `T-10` 1.7×, `T-18` ρ 0.24 |
-| Engines | `ENGINE` | `just deploy-engine` → `sql/40_engine/` | Alarm → incident, funnel, money-ranked triage, window candidates, schedule suggestions | engine + planning suites |
+| Engines | `ENGINE` | `just deploy-engine` → `sql/40_engine/` | Alarm → incident with 4 stored evidence rows each, one operator queue, funnel, money-ranked triage, window candidates, schedule suggestions | engine + planning suites — `T-60`, `T-61`, `T-68` |
 | Metrics | `SERVING` | `sql/30_serve/` | Availability, LD exposure, lost energy, OEE (A × P), semantic view | `G3` — hand-worked fixtures `T-20`…`T-22` |
 | Documents | `DOCS` | `just deploy-agent` → `sql/60_docs/` | Parsed PDFs, section chunks, part → procedure map, Cortex Search | answers suite (`T-37`) |
 | Agent | `GEN` | `sql/70_agent/01_agent.sql` | Cortex Agent with two read-only tools | `T-48` |
 | Action | `ACTION` | `just deploy-action` → `sql/50_action/` | Approval-gated, idempotent, audited writes | `G4` — action suite, `T-33` × 3 roles, `T-47` |
 | UI | `APP` | `just deploy-app` → `app/streamlit_app.py` | 5-tab command center | `T-86`, `T-87`, `T-94` |
-| Evidence | `OPS` | `sql/15_quality/` | Run registry, metrics, 65 assertions and their results | `just verify` |
+| Evidence | `OPS` | `sql/15_quality/` | Run registry, metrics, 72 assertions and their results | `just verify` |
 
 ## 4. Write paths
 
