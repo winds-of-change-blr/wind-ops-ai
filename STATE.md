@@ -33,7 +33,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Nobody mid-flight. `feat/nk/anomaly-detector` is in review |
+| NK | `I-13` fix; serving views (`US-13`…`US-17` minimal); alarm funnel (`US-24`…`US-26`, `T-86`); app + evidence panel (`M8`, `US-38`…`US-43`, `US-90`…`US-92`) | `feat/nk/app-and-serving` | 2026-09-26 | Deploying the whole stack to `BGTCHIX-UZ86048` as the team's working account per NK. Engine approvals (`G4`) and the agent (`G3`) are NOT in this claim |
 
 ## 3. Next actions, in order
 
