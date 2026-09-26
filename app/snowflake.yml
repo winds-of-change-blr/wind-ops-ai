@@ -1,0 +1,24 @@
+definition_version: 2
+# Streamlit in Snowflake, container runtime (ADR-0020).
+#
+# The database is templated from the environment, never written here, so the
+# same manifest deploys into any clone (NFR-6). `just deploy-app` exports
+# WOA_DATABASE from the resolved target before calling `snow streamlit deploy`.
+#
+# No pyproject.toml is deployed on purpose: the app uses only packages the
+# container runtime pre-installs (streamlit, pandas, altair). A dependency file
+# would force PyPI resolution and require an external access integration.
+entities:
+  woa_command_center:
+    type: streamlit
+    identifier:
+      name: WOA_COMMAND_CENTER
+      database: <% ctx.env.WOA_DATABASE %>
+      schema: APP
+    title: "Wind Ops AI — Command Center"
+    query_warehouse: WOA_APP_WH
+    runtime_name: SYSTEM$ST_CONTAINER_RUNTIME_PY3_11
+    compute_pool: SYSTEM_COMPUTE_POOL_CPU
+    main_file: streamlit_app.py
+    artifacts:
+      - streamlit_app.py
