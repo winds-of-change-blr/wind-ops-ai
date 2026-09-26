@@ -61,14 +61,24 @@ create or replace semantic view SERVING.SV_WIND_OPS
     incident as ENGINE.ENG_INCIDENT
       primary key (incident_id)
       with synonyms = ('alarm incident', 'alarm', 'event', 'trip')
-      comment = 'Alarm incidents: repeats of one alarm code on one turbine within 24 hours grouped into one incident, then classified ACTIONABLE, UNDETERMINED or NUISANCE by deterministic rules. Nothing safety-critical and nothing on an elevated-risk asset is ever NUISANCE.'
+      comment = 'Alarm incidents: repeats of one alarm code on one turbine within 24 hours grouped into one incident, then classified ACTIONABLE, UNDETERMINED or NUISANCE by deterministic rules. Nothing safety-critical and nothing on an elevated-risk asset is ever NUISANCE.',
+    oee as SERVING.MET_TURBINE_OEE
+      primary key (turbine_id)
+      with synonyms = ('turbine OEE', 'overall equipment effectiveness', 'performance')
+      comment = 'Turbine OEE per turbine over the window: Availability x Performance, both over wind-in-limits intervals. Quality is NOT modelled (no forecast schedule), so OEE here is A x P, declared. Our adaptation of a factory metric, not an industry standard (ADR-0003).',
+    lost as SERVING.MET_LOST_ENERGY
+      primary key (turbine_id)
+      with synonyms = ('lost energy', 'lost production', 'energy loss')
+      comment = 'Energy lost per turbine in MWh, split into downtime (power-curve energy while unavailable) and underperformance (shortfall against the fleet-median performance while running).'
   )
   relationships (
     turbine_site     as turbine(site_code)      references site,
     risk_turbine     as risk(turbine_id)        references turbine,
     avail_turbine    as availability(turbine_id) references turbine,
     ld_site          as ld(site_code)           references site,
-    incident_turbine as incident(turbine_id)    references turbine
+    incident_turbine as incident(turbine_id)    references turbine,
+    oee_turbine      as oee(turbine_id)         references turbine,
+    lost_turbine     as lost(turbine_id)        references turbine
   )
   facts (
     risk.risk_probability as risk_probability
@@ -98,7 +108,19 @@ create or replace semantic view SERVING.SV_WIND_OPS
     ld.guarantee_pct as guarantee_pct
       comment = 'Availability guarantee in force for the site''s contract year, in percent (95 or 97).',
     incident.n_alarms as n_alarms
-      comment = 'Number of raw alarm trips grouped into this incident.'
+      comment = 'Number of raw alarm trips grouped into this incident.',
+    oee.availability_factor as availability_factor
+      comment = 'OEE availability factor, 0 to 1: running intervals / (running + unavailable) intervals while the wind is within limits.',
+    oee.performance_factor as performance_factor
+      comment = 'OEE performance factor, 0 to 1: actual energy / power-curve energy at the measured wind, while running. A healthy turbine reads about 0.965 against the ideal curve.',
+    oee.oee_value as oee
+      comment = 'Turbine OEE, 0 to 1: availability_factor x performance_factor exactly. Quality not modelled.',
+    lost.lost_mwh_downtime as lost_mwh_downtime
+      comment = 'Energy lost in MWh while the turbine was unavailable and the wind was within limits.',
+    lost.lost_mwh_underperformance as lost_mwh_underperformance
+      comment = 'Energy lost in MWh by running below the fleet-median performance.',
+    lost.lost_mwh_total as lost_mwh_total
+      comment = 'Total energy lost in MWh: downtime plus underperformance.'
   )
   dimensions (
     site.site_code as site_code comment = 'Site code, e.g. KA-CTD, GJ-KCH, TN-TVL.',
@@ -126,7 +148,11 @@ create or replace semantic view SERVING.SV_WIND_OPS
     incident.is_safety_critical as is_safety_critical comment = 'True for protection trips; these are never suppressible.',
     incident.noise_condition as noise_condition comment = 'CHATTERING or STANDING when the incident shows that noise pattern.',
     incident.class_reason as class_reason comment = 'Plain-English reason the incident got its class.',
-    incident.incident_start as incident_start comment = 'Timestamp of the first trip in the incident.'
+    incident.incident_start as incident_start comment = 'Timestamp of the first trip in the incident.',
+    oee.is_underperforming as is_underperforming
+      with synonyms = ('underperforming', 'underperforming while available')
+      comment = 'True when performance is more than 1.5 points below the fleet median: losing energy while running, whatever the availability.',
+    oee.oee_definition as oee_definition comment = 'How OEE is defined here, including that Quality is not modelled.'
   )
   metrics (
     risk.total_expected_loss_inr as sum(risk.expected_loss_inr)
@@ -147,6 +173,12 @@ create or replace semantic view SERVING.SV_WIND_OPS
     incident.actionable_incidents as count_if(incident.incident_class = 'ACTIONABLE')
       comment = 'Number of incidents classified ACTIONABLE.',
     incident.undetermined_incidents as count_if(incident.incident_class = 'UNDETERMINED')
-      comment = 'Number of incidents left UNDETERMINED for a human.'
+      comment = 'Number of incidents left UNDETERMINED for a human.',
+    oee.mean_oee as avg(oee.oee_value)
+      comment = 'Mean Turbine OEE (A x P) across the selected turbines, 0 to 1.',
+    oee.underperforming_turbines as count_if(oee.is_underperforming)
+      comment = 'Number of turbines running more than 1.5 points below fleet-median performance.',
+    lost.total_lost_mwh as sum(lost.lost_mwh_total)
+      comment = 'Total energy lost in MWh across the selected turbines.'
   )
   comment = 'Wind Ops AI command center: component failure risk and expected loss, contractual availability, LD exposure, and classified alarm incidents for a fictional Indian wind OEM (100 turbines, 6 sites). SYNTHETIC DATA ONLY.';

@@ -142,8 +142,18 @@ hooks:
 # Implements: US-44 (deployment scripts) · docs/03-architecture/deployment.md
 [doc('Deploy the full stack into the resolved target, in dependency order')]
 [group('snowflake')]
-deploy: _resolve-db (_todo "deploy" "US-44") && (verify)
-    @echo "would run: foundation -> deploy-data -> deploy-ml -> deploy-engine -> deploy-agent -> deploy-action -> deploy-app"
+deploy: _resolve-db
+    #!/usr/bin/env bash
+    # The whole stack, in dependency order, then every gate. Each step is its
+    # own recipe and gates itself, so the first failure stops the chain with the
+    # failing gate on screen. T-52 runs this twice into a clean database.
+    set -euo pipefail
+    j="just env={{env}} initials={{initials}}"
+    for step in deploy-foundation deploy-data seed deploy-ml deploy-engine deploy-agent deploy-action deploy-app verify; do
+        printf '\n\n##### %s #####\n' "$step"
+        $j "$step"
+    done
+    printf '\nfull deploy + verify complete in %s.\n' "{{database}}"
 
 # Roles, warehouses, database, schemas, grants. Run once per environment.
 # Naming authority: docs/03-architecture/04-code.md. Least privilege (NFR-3).
@@ -203,7 +213,7 @@ deploy-data: _resolve-db
     for f in 01_dimension_tables 02_fact_tables 03_seed_dimensions \
              04_generator_functions 05_operating_context 06_damage_and_failures \
              07_signals 08_cms_features 09_turbine_state 10_alarms \
-             11_consequences 12_generate_all; do
+             11_consequences 13_underperformance 12_generate_all; do
         printf '\n=== 10_generate/%s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/10_generate/${f}.sql" -D "database={{database}}"
     done
@@ -266,10 +276,15 @@ deploy-engine: _resolve-db
     printf 'connection : %s\n\n' "{{connection}}"
 
     # Serving views first: ENG_ALERT_RANKED reads MET_AVAILABILITY_CONTRACTUAL.
-    for f in 30_serve/01_metrics 40_engine/01_alarm_incidents 40_engine/02_alert_ranked 15_quality/04_engine_assertions; do
+    for f in 30_serve/01_metrics 40_engine/01_alarm_incidents 40_engine/02_alert_ranked 30_serve/03_energy_and_oee 15_quality/04_engine_assertions; do
         printf '\n=== %s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
     done
+
+    # 108M signal rows -> ~18k turbine-days, once, so OEE is not recomputed per page.
+    printf '\n=== build turbine-day energy (OEE, lost energy) ===\n'
+    printf 'use role WOA_ADMIN;\nuse database %s;\nuse warehouse WOA_BUILD_WH;\ncall SERVING.SP_BUILD_TURBINE_DAY();\n' "{{database}}" \
+        | {{snow_sql}} --stdin
 
     printf '\n=== build incidents ===\n'
     printf 'use role WOA_ADMIN;\nuse database %s;\nuse warehouse WOA_BUILD_WH;\ncall ENGINE.SP_BUILD_INCIDENTS();\n' "{{database}}" \
@@ -309,13 +324,17 @@ deploy-agent: _resolve-db
         | {{snow_sql}} --stdin
 
     printf '\n=== search service, agent, G3 assertions ===\n'
-    for f in 60_docs/02_search_service 60_docs/03_part_procedure 70_agent/01_agent 15_quality/05_g3_assertions; do
+    for f in 60_docs/02_search_service 60_docs/03_part_procedure 70_agent/01_agent 15_quality/05_g3_assertions 15_quality/07_numbers_assertions; do
         printf '\n--- %s ---\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
     done
 
     printf '\n=== gate on the G3 assertions (T-48 is gating) ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/13_run_verify_g3.sql" -D "database={{database}}"
+
+    # The numbers gate needs the semantic view (T-24 queries it), so it runs here.
+    printf '\n=== gate on the numbers assertions (T-20..T-25, T-86) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/15_run_verify_numbers.sql" -D "database={{database}}"
 
     printf '\nagent deployed: %s.GEN.WOA_OPS_AGENT\n' "{{database}}"
 
@@ -376,12 +395,15 @@ verify: _resolve-db
     printf '\n=== G4: engine (T-60 gating) ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/12_run_verify_engine.sql" -D "database={{database}}"
 
-    printf '\n=== G3: semantic view, documents, agent (T-48 gating) ===\n'
+    printf '\n=== Answers: semantic view, documents, agent (T-37, T-42, T-48 gating) ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/13_run_verify_g3.sql" -D "database={{database}}"
+
+    printf '\n=== G3: the numbers are trustworthy (T-20..T-25, T-86, T-87, T-94) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/15_run_verify_numbers.sql" -D "database={{database}}"
 
     printf '\n=== G4: approval-gated writes (T-29, T-33, T-35 gating) ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/14_run_verify_action.sql" -D "database={{database}}"
-    just _t33-direct-writes-refused
+    just _role-writes-refused
 
     printf '\nverify passed against %s.\n' "{{database}}"
 
@@ -402,7 +424,7 @@ deploy-action: _resolve-db
     done
     printf '\n=== gate on the action assertions ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/14_run_verify_action.sql" -D "database={{database}}"
-    just _t33-direct-writes-refused
+    just _role-writes-refused
     printf '\naction layer deployed and gated in %s.\n' "{{database}}"
 
 # T-33, behavioural half: a real INSERT into ACTION as WOA_APP and as
@@ -416,14 +438,17 @@ deploy-action: _resolve-db
 # first version of this test did (evidence 09 §5). The test is about the ROLE,
 # so the session must hold only the role.
 [private]
-_t33-direct-writes-refused:
+_role-writes-refused:
     #!/usr/bin/env bash
     set -uo pipefail
-    printf '\n=== T-33: direct writes as WOA_APP and WOA_AGENT must be refused ===\n'
+    printf '\n=== T-33: direct writes as WOA_APP, WOA_AGENT, WOA_SCHEDULER must be refused ===\n'
     fail=0
-    for role in WOA_APP WOA_AGENT; do
-        out=$(printf 'use role %s;\nuse secondary roles none;\nuse warehouse WOA_APP_WH;\ninsert into %s.ACTION.ACT_WORK_ORDER (work_order_id, draft_id, component_id, turbine_id, part_number, procedure_doc_id, approved_by, approved_role, approved_at, status, idempotency_key) select uuid_string(), %s, %s, %s, %s, %s, current_user(), current_role(), current_timestamp(), %s, uuid_string();\n' \
-            "$role" "{{database}}" "'T33'" "'T33'" "'T33'" "'T33'" "'T33'" "'T33'" | snow sql --stdin 2>&1)
+    for role in WOA_APP WOA_AGENT WOA_SCHEDULER; do
+        # Each role on its own warehouse: WOA_SCHEDULER is deliberately denied
+        # WOA_APP_WH, and a refusal at USE WAREHOUSE would never reach the INSERT.
+        wh=WOA_APP_WH; [ "$role" = WOA_SCHEDULER ] && wh=WOA_BUILD_WH
+        out=$(printf 'use role %s;\nuse secondary roles none;\nuse warehouse %s;\ninsert into %s.ACTION.ACT_WORK_ORDER (work_order_id, draft_id, component_id, turbine_id, part_number, procedure_doc_id, approved_by, approved_role, approved_at, status, idempotency_key) select uuid_string(), %s, %s, %s, %s, %s, current_user(), current_role(), current_timestamp(), %s, uuid_string();\n' \
+            "$role" "$wh" "{{database}}" "'T33'" "'T33'" "'T33'" "'T33'" "'T33'" "'T33'" | snow sql --stdin 2>&1)
         if printf '%s' "$out" | grep -qi 'number of rows inserted'; then
             printf 'FAIL  %s WROTE to ACTION directly\n' "$role"; fail=1
         elif printf '%s' "$out" | grep -qE '\b(002003|003001) \('; then
@@ -437,6 +462,26 @@ _t33-direct-writes-refused:
             printf 'FAIL  %s failed for an unexpected reason:\n%s\n' "$role" "$out"; fail=1
         fi
     done
+
+    # T-47: nothing destructive is reachable from the agent's role. DDL, DELETE
+    # and UPDATE against objects WOA_AGENT can READ. Each is inert even if it
+    # somehow ran (WHERE 1=0, a no-op comment), and each must be refused.
+    printf '\n=== T-47: DDL, DELETE and UPDATE as WOA_AGENT must be refused ===\n'
+    while IFS= read -r stmt; do
+        out=$(printf 'use role WOA_AGENT;\nuse secondary roles none;\nuse warehouse WOA_APP_WH;\n%s;\n' "$stmt" | snow sql --stdin 2>&1)
+        label=$(printf '%s' "$stmt" | cut -c1-60)
+        if printf '%s' "$out" | grep -qE '\b(002003|003001) \('; then
+            printf 'PASS  refused (%s): %s\n' "$(printf '%s' "$out" | grep -oE '\b(002003|003001)\b' | head -1)" "$label"
+        else
+            printf 'FAIL  not refused: %s\n%s\n' "$label" "$out"; fail=1
+        fi
+    done <<EOF
+    create table {{database}}.SERVING.T47_PROBE (x int)
+    delete from {{database}}.ENGINE.ENG_INCIDENT where 1 = 0
+    update {{database}}.ENGINE.ENG_INCIDENT set class_reason = class_reason where 1 = 0
+    alter view {{database}}.SERVING.MET_LD_EXPOSURE set comment = 'T-47 probe'
+    drop view {{database}}.SERVING.MET_LD_EXPOSURE
+    EOF
     exit $fail
 
 # Generate/refresh synthetic data in the target. Deterministic seed (T-8).
@@ -479,7 +524,8 @@ seed history="183" seed_value="VWS-2026" damage="1.8" share="0.16" interval="10"
 # Regenerate the results summary from OPS. Never hand-written (T-92, T-95).
 [doc('Regenerate the results summary from OPS. Never hand-written')]
 [group('snowflake')]
-results: _resolve-db (_todo "results" "T-92, T-95")
+results: _resolve-db
+    uv run --quiet --with snowflake-connector-python python scripts/generate_results.py "{{database}}"
 
 # Current spend, both sources summed. Warehouse metering alone under-reports
 # by ~10x. Alerts NK at each $100 (Q-7).
@@ -557,6 +603,27 @@ teardown: _resolve-db
     done
 
     printf '\nteardown complete.\n'
+
+# Drop ONE personal database and nothing account-level. Unlike `teardown`,
+# this leaves the shared WOA_* roles and warehouses alone, so it is safe on an
+# account where other clones (and the demo) live. Non-interactive: the database
+# name must be typed as the argument. Refuses the shared database outright.
+# Implements: the database half of T-52.
+[doc('Drop one personal database only (not roles/warehouses). Arg: its exact name')]
+[group('snowflake')]
+teardown-db CONFIRM: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{env}}" = "shared" ]; then
+        echo "refusing: teardown-db never drops the shared database." >&2; exit 1
+    fi
+    if [ "{{CONFIRM}}" != "{{database}}" ]; then
+        echo "refusing: argument '{{CONFIRM}}' does not match the target '{{database}}'." >&2; exit 1
+    fi
+    {{snow_sql}} -f "{{sql_dir}}/90_teardown/01_database.sql" -D "database={{database}}"
+    left=$(snow sql -q "show databases like '{{database}}'" --format json | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')
+    [ "$left" = "0" ] || { echo "FAIL: {{database}} still exists after teardown" >&2; exit 1; }
+    printf 'PASS  %s dropped; roles and warehouses untouched.\n' "{{database}}"
 
 # --- release -----------------------------------------------------------------
 

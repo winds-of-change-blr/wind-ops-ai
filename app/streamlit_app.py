@@ -593,6 +593,71 @@ with t_fleet:
             width="stretch",
         )
 
+    oee = _run(
+        f"""select o.turbine_id, o.site_code, o.availability_factor, o.performance_factor,
+                   o.oee, o.is_underperforming, o.mean_yaw_error_deg, o.fleet_median_performance,
+                   o.oee_definition, l.lost_mwh_downtime, l.lost_mwh_underperformance,
+                   l.lost_mwh_total
+            from {q("SERVING.MET_TURBINE_OEE")} o
+            join {q("SERVING.MET_LOST_ENERGY")} l on l.turbine_id = o.turbine_id
+            order by o.performance_factor"""
+    )
+    if not oee.empty:
+        st.subheader("Turbine OEE — and what it catches that availability cannot")
+        # The definition is shown, not footnoted: this is our adaptation (ADR-0003).
+        st.caption(oee.iloc[0]["oee_definition"])
+        o1, o2, o3, o4 = st.columns(4)
+        o1.metric("Mean OEE (A × P)", f"{oee['oee'].mean():.1%}")
+        o2.metric("Mean availability factor", f"{oee['availability_factor'].mean():.1%}")
+        o3.metric(
+            "Fleet-median performance",
+            f"{float(oee.iloc[0]['fleet_median_performance']):.1%}",
+            help="Against the ideal power curve, so a healthy turbine reads about 96.5%.",
+        )
+        o4.metric("Energy lost", f"{oee['lost_mwh_total'].sum():,.0f} MWh")
+
+        under = oee[oee["is_underperforming"]]
+        st.markdown(
+            f"**{len(under)} turbine(s) underperforming while available** — losing energy "
+            "while running, with no alarm raised. Availability alone would call them healthy."
+        )
+        st.dataframe(
+            under[
+                [
+                    "turbine_id",
+                    "site_code",
+                    "availability_factor",
+                    "performance_factor",
+                    "oee",
+                    "mean_yaw_error_deg",
+                    "lost_mwh_underperformance",
+                ]
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        # Degrades to a table that keeps the number (NFR-22): the scatter is extra.
+        st.altair_chart(
+            alt.Chart(oee)
+            .mark_circle(size=70)
+            .encode(
+                x=alt.X(
+                    "availability_factor:Q",
+                    scale=alt.Scale(zero=False),
+                    title="availability factor",
+                ),
+                y=alt.Y(
+                    "performance_factor:Q",
+                    scale=alt.Scale(zero=False),
+                    title="performance factor",
+                ),
+                color=alt.Color("is_underperforming:N", title="underperforming"),
+                tooltip=["turbine_id", "availability_factor", "performance_factor", "oee"],
+            )
+            .properties(height=260),
+            width="stretch",
+        )
+
 # --------------------------------------------------------------------------- audit
 with t_audit:
     st.subheader("Who decided what, when, and on what evidence")

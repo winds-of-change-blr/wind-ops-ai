@@ -28,15 +28,15 @@ use warehouse WOA_BUILD_WH;
 merge into OPS.DQ_ASSERTION tgt
 using (
     select * from values
-        ('DQ-AGENT-READ-ONLY',     'T-48', 'G3', 'The live agent has only read-only tools',
+        ('DQ-AGENT-READ-ONLY',     'T-48', 'G4', 'The live agent has only read-only tools',
             'An agent that can call a write procedure and so route around approval', true),
-        ('DQ-SV-DESCRIBED',        'T-42', 'G3', 'Every semantic-view table, fact, dimension and metric has a description',
+        ('DQ-SV-DESCRIBED',        'T-42', 'G5', 'Every semantic-view table, fact, dimension and metric has a description',
             'Cortex Analyst guessing what a column means', false),
-        ('DQ-SV-SAMPLES-REAL',     'T-42', 'G3', 'Every example value quoted in a description exists in the data',
+        ('DQ-SV-SAMPLES-REAL',     'T-42', 'G5', 'Every example value quoted in a description exists in the data',
             'A description that teaches Analyst an identifier that does not exist', false),
-        ('DQ-DOC-SECTIONS',        'T-37', 'G3', 'Every parsed document keeps at least two named sections',
+        ('DQ-DOC-SECTIONS',        'T-37', 'G5', 'Every parsed document keeps at least two named sections',
             'A citation that cannot be opened to a section', false),
-        ('DQ-DOC-DATA-CONSISTENT', 'T-37', 'G3', 'Every part number and alarm code a document cites exists in the data',
+        ('DQ-DOC-DATA-CONSISTENT', 'T-37', 'G5', 'Every part number and alarm code a document cites exists in the data',
             'An answer whose document half contradicts its data half', false)
     as s(id, test_id, gate, title, prevents, gating)
 ) src
