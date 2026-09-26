@@ -10,6 +10,7 @@ Reading order. Each level answers one question.
 | [02-container.md](02-container.md) | 2 — Container | What are the deployable pieces inside Snowflake? |
 | [03-component.md](03-component.md) | 3 — Component | What is inside each container, and how does data flow? |
 | [04-code.md](04-code.md) | 4 — Code | Naming, schemas, roles, warehouses — the conventions all code follows |
+| [dataflow-as-built.md](dataflow-as-built.md) | — | **What is actually built** — every source, layer, Snowflake object and UI surface, as deployed |
 | [deployment.md](deployment.md) | — | Environments, setup, teardown, degraded modes |
 | [cross-cutting-concerns.md](cross-cutting-concerns.md) | — | Security, governance, audit, cost, observability, failure handling |
 | [decisions/README.md](decisions/README.md) | — | Every decision, made or pending |
