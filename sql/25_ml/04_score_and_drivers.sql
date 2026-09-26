@@ -157,12 +157,14 @@ begin
     -- inputs produced a different score" — which was true, but not for the reason
     -- the test is looking for.
     --
-    -- Scoping the delete to the (component, date) pairs being rewritten makes the
-    -- run idempotent for real, regardless of which run last touched those rows.
-    delete from ML.SCORE_COMPONENT_RISK
-    where (component_id, scored_date) in (select component_id, feature_date from ML.ML_TMP_SCORED);
-    delete from ML.DRIVER_COMPONENT_RISK
-    where (component_id, scored_date) in (select component_id, feature_date from ML.ML_TMP_SCORED);
+    -- The table is a SNAPSHOT — one row per component at the as-of date, every row
+    -- from the current model version (05_anomaly.sql and DQ in 07_numbers rely on
+    -- both). So the whole snapshot is replaced. Scoping the delete to the
+    -- (component, date) pairs being rewritten was not enough: when the as-of date
+    -- moved (I-13), a redeploy onto existing data left the previous snapshot beside
+    -- the new one, and T-19 re-predicted 400 stale rows with the new model.
+    delete from ML.SCORE_COMPONENT_RISK;
+    delete from ML.DRIVER_COMPONENT_RISK;
 
     insert into ML.SCORE_COMPONENT_RISK (
         component_id, turbine_id, component_class_code, scored_date,
