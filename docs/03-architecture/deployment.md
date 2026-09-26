@@ -76,7 +76,8 @@ non-zero until implemented (`US-44`).
 | `just deploy-data` | `10_generate`, `15_quality`, `20_curate`, `30_serve` |
 | `just deploy-ml` | `python/ml` — fails loudly if the model does not beat both baselines (`T-10`) |
 | `just deploy-engine` | `40_engine`, `50_action` |
-| `just deploy-agent` | `60_docs`, `70_agent` |
+| `just deploy-agent` | `60_docs`, `70_agent`, `30_serve/02_semantic_view` |
+| `just deploy-action` | `50_action` (tables, approval procedures, grants), gated by `15_quality/06` and the `T-33` direct-write check |
 | `just deploy-app` | `app` |
 | `just deploy` | All of the above in dependency order, then `just verify` |
 | `just update` | Only what changed. **Never drops or recreates anything holding rows** |

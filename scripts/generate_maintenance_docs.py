@@ -135,6 +135,69 @@ DOCS: list[tuple[str, str, str, list[tuple[str, list[str]]]]] = [
         ],
     ),
     (
+        "VWS-MP-GEN-012",
+        "Generator stator exchange (crane campaign)",
+        "Platforms VW-3.0 and VW-2.1 · Component class GEN",
+        [
+            (
+                "1. Scope",
+                [
+                    "Exchange of the generator stator (part PT-GEN-STATOR). Requires a main crane to lower the generator. "
+                    "Lead time 90 days. Bearing-only faults are covered by VWS-MP-GEN-008 and need no crane.",
+                ],
+            ),
+            (
+                "2. When to use this procedure",
+                [
+                    "Use when the generator shows a thermal rise that persists after bearing replacement, or winding insulation "
+                    "resistance falls below specification. A thermal rise with CM-VB-004 alone points to the bearing first.",
+                ],
+            ),
+            (
+                "3. Planning",
+                [
+                    "Plan as a crane campaign (see VWS-MP-GBX-021 section 3) and order the stator as soon as the risk score "
+                    "reaches the MEDIUM band: at 90 days the lead time is longer than most predicted times to failure.",
+                ],
+            ),
+            (
+                "4. Duration and crew",
+                ["Typical duration 4 days on site with a crew of 5, plus crane mobilisation."],
+            ),
+        ],
+    ),
+    (
+        "VWS-MP-PIT-015",
+        "Pitch bearing replacement (crane campaign)",
+        "Platforms VW-3.0 and VW-2.1 · Component class PIT",
+        [
+            (
+                "1. Scope",
+                [
+                    "Replacement of a pitch bearing (part PT-PIT-BEAR). Requires a main crane to remove the blade. "
+                    "Lead time 75 days. Battery and motor faults are covered by VWS-MP-PIT-011.",
+                ],
+            ),
+            (
+                "2. When to use this procedure",
+                [
+                    "Use when pitch faults (SA-PT-001) recur after the battery and motor have been cleared, or the pitch "
+                    "axis shows rising friction torque against its own baseline.",
+                ],
+            ),
+            (
+                "3. Planning",
+                [
+                    "Blade removal needs a lift window of wind below 8 m/s. Bundle with other crane work at the site.",
+                ],
+            ),
+            (
+                "4. Duration and crew",
+                ["Typical duration 3 days on site with a crew of 5, plus crane mobilisation."],
+            ),
+        ],
+    ),
+    (
         "VWS-MP-MSB-003",
         "Main shaft bearing replacement",
         "Platforms VW-3.0 and VW-2.1 · Component class MSB",

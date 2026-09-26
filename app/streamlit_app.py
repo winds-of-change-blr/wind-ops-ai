@@ -1,6 +1,8 @@
 """Wind Ops AI — command center (Streamlit in Snowflake, ADR-0020).
 
-SYNTHETIC DATA ONLY (AGENTS.md rule 5). Read-only: this app issues no writes.
+SYNTHETIC DATA ONLY (AGENTS.md rule 5). Writes ONLY through the ACTION approval
+procedures (ADR-0005): the app holds no DML, and every button that changes
+something calls a procedure that re-validates, audits first, then writes.
 
 Design rules this file keeps:
 * Connection from configuration, never a Snowflake-hosted session token, so
@@ -16,8 +18,10 @@ Design rules this file keeps:
 from __future__ import annotations
 
 import decimal
+import json
 import os
 import re
+import uuid
 
 import altair as alt
 import pandas as pd
@@ -71,6 +75,54 @@ def q(obj: str) -> str:
     return f"{_database()}.{schema}.{name}"
 
 
+def _fresh(sql: str, params: list | None = None) -> pd.DataFrame:
+    """Uncached read, for ACTION state that must reflect the click just made."""
+    df = _conn().session().sql(sql, params=params or []).to_pandas()
+    df.columns = [c.lower() for c in df.columns]
+    return df
+
+
+def _viewer() -> str | None:
+    # The app runs as its owner, so CURRENT_USER() inside a procedure cannot see
+    # the person clicking. Their name is passed as ON_BEHALF_OF and recorded
+    # BESIDE the authenticated caller, never instead of it (ADR-0020).
+    try:
+        return getattr(st.user, "user_name", None) or getattr(st.user, "email", None)
+    except Exception:
+        return None
+
+
+def _key(action: str, subject: str) -> str:
+    """One idempotency key per (action, subject) per browser session.
+
+    A double-click or a rerun re-sends the SAME key, so the procedure returns
+    DUPLICATE instead of writing twice (T-34). A new key is issued only after
+    the user deliberately starts over.
+    """
+    slot = f"idem::{action}::{subject}"
+    if slot not in st.session_state:
+        st.session_state[slot] = f"APP-{uuid.uuid4()}"
+    return st.session_state[slot]
+
+
+def _call(proc: str, args: list) -> dict:
+    """Call an ACTION procedure with bound arguments and return its result."""
+    marks = ", ".join("?" for _ in args)
+    row = _conn().session().sql(f"call {q(proc)}({marks})", params=args).collect()[0]
+    return json.loads(row[0]) if isinstance(row[0], str) else dict(row[0])
+
+
+def _show(result: dict) -> None:
+    """Render a procedure outcome. Never claims a write that did not happen."""
+    outcome, msg = result.get("outcome"), result.get("message") or ""
+    if outcome == "APPLIED":
+        st.success(f"**Done.** {msg}", icon=":material/check_circle:")
+    elif outcome == "DUPLICATE":
+        st.info(f"**Already done — nothing new written.** {msg}", icon=":material/content_copy:")
+    else:
+        st.error(f"**Refused.** {msg}", icon=":material/block:")
+
+
 def inr(x) -> str:
     if x is None or pd.isna(x):
         return "—"
@@ -100,12 +152,13 @@ if as_of is not None:
         icon=":material/event:",
     )
 
-t_alarms, t_triage, t_model, t_fleet = st.tabs(
+t_alarms, t_triage, t_model, t_fleet, t_audit = st.tabs(
     [
         ":material/notifications: Alarms",
         ":material/priority_high: Risk triage",
         ":material/science: Is the model real?",
         ":material/wind_power: Fleet & contracts",
+        ":material/history: Audit",
     ]
 )
 
@@ -184,39 +237,42 @@ with t_alarms:
         )
         st.dataframe(queue, hide_index=True, width="stretch")
 
-        st.subheader("Try to suppress one")
+        st.subheader("Suppress an incident")
         st.caption(
-            "Suppression is guarded (AGENTS.md rule 3): never on a safety-critical "
-            "code, never on an "
-            "asset with elevated evidence. This checks the guards read-only; no write is made."
+            "Suppression is the one action that can hide a real failure, so the procedure "
+            "re-checks everything itself: never a safety-critical code, never an asset with "
+            "elevated evidence or MEDIUM/HIGH risk, only engine-classed NUISANCE, always "
+            "time-boxed, always audited, always reversible. Try any incident — refusals are "
+            "recorded too."
         )
         pick = st.selectbox("Incident", queue["incident_id"].tolist() if not queue.empty else [])
-        if pick and st.button("Suppress this incident", icon=":material/notifications_off:"):
-            row = queue[queue["incident_id"] == pick].iloc[0]
-            if bool(row.is_safety_critical):
-                st.error(
-                    f"**Refused.** `{row.alarm_code}` is a safety-critical code. "
-                    "Safety-critical alarms are never suppressible.",
-                    icon=":material/block:",
+        s1, s2 = st.columns([3, 1])
+        reason = s1.text_input("Reason (required)", placeholder="Why is this noise?")
+        hours = s2.number_input("Hours", min_value=1, max_value=168, value=24)
+        if pick and st.button("Request suppression", icon=":material/notifications_off:"):
+            _show(
+                _call(
+                    "ACTION.SP_APPROVE_SUPPRESSION",
+                    [pick, int(hours), reason, _key("suppress", pick), _viewer()],
                 )
-            elif bool(row.is_elevated):
-                st.error(
-                    "**Refused.** This asset carries elevated evidence — an "
-                    "anomaly flag within 3 days "
-                    "or a CMS alarm within 7. Nothing is suppressed on an elevated-risk asset.",
-                    icon=":material/block:",
-                )
-            elif klass == "UNDETERMINED":
-                st.error(
-                    "**Refused.** Undetermined incidents are never auto-suppressible: "
-                    "suppressing what you don't understand is how real failures get lost.",
-                    icon=":material/block:",
-                )
-            else:
-                st.warning(
-                    "The guards would allow this. Suppression still needs human approval, "
-                    "and the approval workflow (G4) is not built yet — so nothing was written.",
-                    icon=":material/pending:",
+            )
+
+        active = _fresh(
+            f"""select suppression_id, incident_id, turbine_id, alarm_code, reason,
+                       approved_by, on_behalf_of, approved_at, expires_at
+                from {q("ACTION.ACT_V_SUPPRESSION_ACTIVE")} order by approved_at desc"""
+        )
+        st.markdown(f"**Active suppressions — {len(active)}**")
+        if not active.empty:
+            st.dataframe(active, hide_index=True, width="stretch")
+            rv = st.selectbox("Revoke", active["suppression_id"].tolist())
+            rv_reason = st.text_input("Reason for revoking", key="rv_reason")
+            if st.button("Revoke suppression", icon=":material/undo:"):
+                _show(
+                    _call(
+                        "ACTION.SP_REVOKE_SUPPRESSION",
+                        [rv, rv_reason, _key("revoke", rv), _viewer()],
+                    )
                 )
 
 # --------------------------------------------------------------------------- triage
@@ -334,6 +390,76 @@ with t_triage:
                 )
             )
             st.altair_chart((band + line + pts).properties(height=240), width="stretch")
+
+        st.subheader("Work order")
+        st.caption(
+            "A draft is made only for MEDIUM or HIGH risk, and carries the evidence as it "
+            "stands now. Approval re-checks that evidence against the engine and writes one "
+            "work order, however many times it is clicked. **No window, crew or crane is "
+            "booked** — the window engine is not built, and the draft says so."
+        )
+        if st.button("Draft a work order", icon=":material/edit_note:"):
+            _show(_call("ACTION.SP_DRAFT_WORK_ORDER", [cid, _key("draft", cid), _viewer()]))
+        drafts = _fresh(
+            f"""select d.draft_id, d.status, d.scope, d.part_number, d.part_name,
+                       d.part_lead_time_days, d.requires_crane, d.stock_on_hand,
+                       d.procedure_doc_id, d.procedure_section, d.risk_band, d.risk_probability,
+                       d.expected_loss_inr, d.risk_as_of_date, d.window_status, d.window_note,
+                       d.drafted_by, d.drafted_at, w.work_order_id, w.approved_by, w.approved_at
+                from {q("ACTION.ACT_WORK_ORDER_DRAFT")} d
+                left join {q("ACTION.ACT_WORK_ORDER")} w on w.draft_id = d.draft_id
+                where d.component_id = ? and not d.is_selftest
+                order by d.drafted_at desc limit 5""",
+            params=[cid],
+        )
+        if not drafts.empty:
+            d = drafts.iloc[0]
+            st.markdown(f"**Latest draft — {d.status}**")
+            st.write(d.scope)
+            w1, w2, w3, w4 = st.columns(4)
+            w1.metric("Part", d.part_number, d.part_name)
+            w2.metric(
+                "Lead time · stock",
+                f"{int(d.part_lead_time_days or 0)} days",
+                f"{int(d.stock_on_hand or 0)} on hand"
+                + (" · crane" if bool(d.requires_crane) else ""),
+            )
+            w3.metric("Procedure", d.procedure_doc_id, d.procedure_section)
+            w4.metric("Window", d.window_status)
+            st.caption(d.window_note)
+            if d.status == "DRAFT":
+                a1, a2, a3 = st.columns([1, 1, 2])
+                if a1.button("Approve", type="primary", icon=":material/task_alt:"):
+                    _show(
+                        _call(
+                            "ACTION.SP_APPROVE_WORK_ORDER",
+                            [d.draft_id, _key("approve", d.draft_id), _viewer()],
+                        )
+                    )
+                code = a3.selectbox(
+                    "Reject reason",
+                    [
+                        "NOT_NEEDED",
+                        "ALREADY_PLANNED",
+                        "EVIDENCE_DISPUTED",
+                        "DUPLICATE_DRAFT",
+                        "OTHER",
+                    ],
+                )
+                note = a3.text_input("Note (required for OTHER)", key="reject_note")
+                if a2.button("Reject", icon=":material/close:"):
+                    _show(
+                        _call(
+                            "ACTION.SP_REJECT_WORK_ORDER_DRAFT",
+                            [d.draft_id, code, note, _key("reject", d.draft_id), _viewer()],
+                        )
+                    )
+            elif pd.notna(d.work_order_id):
+                st.success(
+                    f"Work order `{d.work_order_id}` approved by {d.approved_by} at "
+                    f"{d.approved_at}. Not yet scheduled.",
+                    icon=":material/assignment_turned_in:",
+                )
 
 # --------------------------------------------------------------------------- model
 with t_model:
@@ -466,3 +592,29 @@ with t_fleet:
             hide_index=True,
             width="stretch",
         )
+
+# --------------------------------------------------------------------------- audit
+with t_audit:
+    st.subheader("Who decided what, when, and on what evidence")
+    st.caption(
+        "Every request to the ACTION procedures is appended here **before** anything "
+        "changes \u2014 refusals included. If this append fails, the write fails (ADR-0005). "
+        "Self-test rows from `just verify` are hidden."
+    )
+    aud = _fresh(
+        f"""select event_at, action_type, outcome, object_id, reason, actor_user, actor_role,
+                   on_behalf_of, idempotency_key, evidence
+            from {q("ACTION.AUD_ACTION")}
+            where not is_selftest
+            order by event_at desc limit 200"""
+    )
+    if aud.empty:
+        st.info(
+            "Nothing has been requested yet. Try suppressing an alarm or drafting a work order."
+        )
+    else:
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Requests", len(aud))
+        k2.metric("Applied", int((aud["outcome"] == "APPLIED").sum()))
+        k3.metric("Refused", int((aud["outcome"] == "REFUSED").sum()))
+        st.dataframe(aud, hide_index=True, width="stretch")

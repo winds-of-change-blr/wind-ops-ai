@@ -143,7 +143,7 @@ hooks:
 [doc('Deploy the full stack into the resolved target, in dependency order')]
 [group('snowflake')]
 deploy: _resolve-db (_todo "deploy" "US-44") && (verify)
-    @echo "would run: foundation -> deploy-data -> deploy-ml -> deploy-agent -> deploy-app"
+    @echo "would run: foundation -> deploy-data -> deploy-ml -> deploy-engine -> deploy-agent -> deploy-action -> deploy-app"
 
 # Roles, warehouses, database, schemas, grants. Run once per environment.
 # Naming authority: docs/03-architecture/04-code.md. Least privilege (NFR-3).
@@ -309,7 +309,7 @@ deploy-agent: _resolve-db
         | {{snow_sql}} --stdin
 
     printf '\n=== search service, agent, G3 assertions ===\n'
-    for f in 60_docs/02_search_service 70_agent/01_agent 15_quality/05_g3_assertions; do
+    for f in 60_docs/02_search_service 60_docs/03_part_procedure 70_agent/01_agent 15_quality/05_g3_assertions; do
         printf '\n--- %s ---\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
     done
@@ -379,7 +379,65 @@ verify: _resolve-db
     printf '\n=== G3: semantic view, documents, agent (T-48 gating) ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/13_run_verify_g3.sql" -D "database={{database}}"
 
+    printf '\n=== G4: approval-gated writes (T-29, T-33, T-35 gating) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/14_run_verify_action.sql" -D "database={{database}}"
+    just _t33-direct-writes-refused
+
     printf '\nverify passed against %s.\n' "{{database}}"
+
+# ACTION: the approval procedures — the ONLY write path (ADR-0005, M10).
+# Implements: FR-32, FR-34..FR-37 · gated by 15_quality/14 (T-29, T-33, T-35 gating)
+# Needs deploy-engine (the guards read ENGINE) and deploy-agent (drafts cite
+# the procedure documents).
+[doc('ACTION: approval-gated, idempotent, audited writes, and the G4 gate')]
+[group('snowflake')]
+deploy-action: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n\n' "{{connection}}"
+    for f in 60_docs/03_part_procedure 50_action/01_action_tables 50_action/02_action_procedures 50_action/03_action_grants 15_quality/06_action_assertions; do
+        printf '\n=== %s ===\n' "$f"
+        {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
+    done
+    printf '\n=== gate on the action assertions ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/14_run_verify_action.sql" -D "database={{database}}"
+    just _t33-direct-writes-refused
+    printf '\naction layer deployed and gated in %s.\n' "{{database}}"
+
+# T-33, behavioural half: a real INSERT into ACTION as WOA_APP and as
+# WOA_AGENT. Each must FAIL, and fail for lack of privilege — a failure for
+# any other reason (typo, missing warehouse) would prove nothing, so the
+# error text is checked too. Lives here because a procedure cannot change role.
+#
+# `use secondary roles none` is essential. The human running this has
+# DEFAULT_SECONDARY_ROLES = ALL, so without it `use role WOA_APP` still carries
+# ACCOUNTADMIN's privileges and the INSERT succeeds — which is exactly what the
+# first version of this test did (evidence 09 §5). The test is about the ROLE,
+# so the session must hold only the role.
+[private]
+_t33-direct-writes-refused:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    printf '\n=== T-33: direct writes as WOA_APP and WOA_AGENT must be refused ===\n'
+    fail=0
+    for role in WOA_APP WOA_AGENT; do
+        out=$(printf 'use role %s;\nuse secondary roles none;\nuse warehouse WOA_APP_WH;\ninsert into %s.ACTION.ACT_WORK_ORDER (work_order_id, draft_id, component_id, turbine_id, part_number, procedure_doc_id, approved_by, approved_role, approved_at, status, idempotency_key) select uuid_string(), %s, %s, %s, %s, %s, current_user(), current_role(), current_timestamp(), %s, uuid_string();\n' \
+            "$role" "{{database}}" "'T33'" "'T33'" "'T33'" "'T33'" "'T33'" "'T33'" | snow sql --stdin 2>&1)
+        if printf '%s' "$out" | grep -qi 'number of rows inserted'; then
+            printf 'FAIL  %s WROTE to ACTION directly\n' "$role"; fail=1
+        elif printf '%s' "$out" | grep -qE '\b(002003|003001) \('; then
+            # Match Snowflake's error CODE, not its text: the CLI draws errors in
+            # a box and wraps long messages, which split "not authorized" across
+            # two lines and made the first run report a correct refusal as a
+            # failure. 002003 = does not exist or not authorized; 003001 =
+            # insufficient privileges.
+            printf 'PASS  %s refused (%s)\n' "$role" "$(printf '%s' "$out" | grep -oE '\b(002003|003001)\b' | head -1)"
+        else
+            printf 'FAIL  %s failed for an unexpected reason:\n%s\n' "$role" "$out"; fail=1
+        fi
+    done
+    exit $fail
 
 # Generate/refresh synthetic data in the target. Deterministic seed (T-8).
 #
