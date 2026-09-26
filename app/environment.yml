@@ -1,0 +1,9 @@
+# Warehouse runtime dependencies, resolved from Snowflake's built-in Anaconda
+# channel - no external access needed (a trial account cannot have any, I-17).
+name: woa_command_center
+channels:
+  - snowflake
+dependencies:
+  - streamlit=1.52.2
+  - pandas
+  - altair

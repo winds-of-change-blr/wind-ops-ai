@@ -1,7 +1,8 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-09-25 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
-> **Plan day:** D8 (generator + both models built; `T-10` and `T-18` pass) · **Branch:** `feat/nk/anomaly-detector`
+> **Last updated:** 2026-09-26 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
+> **Plan day:** D9 · **Working account: `BGTCHIX-UZ86048`** (moved here 2026-09-26, per NK) · **Branch:** `feat/nk/app-and-serving`
+> **The app exists:** `WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER` — https://app.snowflake.com/BGTCHIX/uz86048/#/streamlit-apps/WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER
 
 **This file holds status, never intent.** Intent lives in `docs/`. If the two disagree: `docs/` wins on
 *what we are building*, this file wins on *how far we got*. Overwrite sections in place — never append.
@@ -13,17 +14,14 @@ Full protocol in [`AGENTS.md`](AGENTS.md#session-protocol).
 
 | Gate | State | Blocking |
 | --- | --- | --- |
-| **G1** — data is honest (D4) | **PASSED** — 16/16 data assertions green **and `T-10` passes** | — |
-| **G2** — the model is real (D9) | **PASSED on the model side** — 10 ML assertions green: `T-10` at **1.76×** the trivial rule, a stability bound, and `T-18` at **Spearman 0.222** against a pre-registered 0.50. Only `T-94`'s *surface* is outstanding, and that needs the app | `T-94` needs the app (`I-12`) |
-| **G3** — answers are trustworthy (D9) | Not started | G2 |
-| **G4** — actions are safe (D12) | Not started | — |
-| **G5** — demo-ready and submittable (D15) | Not started | all |
+| **G1** — data is honest (D4) | **PASSED** — 16 assertions on `BGTCHIX` | — |
+| **G2** — the model is real (D9) | **PASSED** — 10 assertions: `T-10` **1.76×**, `T-18` ρ **0.243**, and `I-13` fixed so the published surface varies (6 HIGH) | `T-94` UI-reconciliation assertion not yet written |
+| **G3** — answers are trustworthy (D9) | **Not started** — semantic view, verified queries, agent. **Now the critical path** | — |
+| **G4** — actions are safe (D12) | **Partly** — `T-60` (gating) **passes at 0 suppressed**; `T-70` passes. Approval-gated writes + audit (`M10`, `T-71`, `T-76`) not built | — |
+| **G5** — demo-ready (D15) | **Started** — app live with 4 tabs; `T-96`/`T-97` demonstrated via `AppTest` | walkthrough, README, deck |
 
-Gate definitions: [`testing-and-validation.md`](docs/07-quality/testing-and-validation.md).
-**18 gating tests** — 4 run and passing: `T-8`, `T-10`, `T-11`, `T-16`. **`T-10` was the D4 decision
-point and it passed**, so the generator stands and work continues rather than stopping to fix it.
-Non-gating and green: `T-1`, `T-7`, `T-9`, `T-12`…`T-15`, `T-17`, `T-19`, `T-62`, `T-64`…`T-67`.
-`just verify` runs both suites — 16 data + 7 ML assertions — and exits non-zero on any failure.
+`just verify` runs **three** suites — **16 data + 10 ML + 5 engine = 31 assertions** — and exits non-zero on any failure.
+Gating tests run and passing: `T-8`, `T-10`, `T-11`, `T-16`, **`T-60`**.
 
 ## 2. In flight — claim before you start
 
@@ -33,26 +31,22 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Nobody mid-flight. `feat/nk/anomaly-detector` is in review |
+| — | — | — | — | Nobody mid-flight. `feat/nk/app-and-serving` is in review |
 
 ## 3. Next actions, in order
 
-Taken from [`project-plan.md`](docs/08-delivery/project-plan.md) D1. Do not re-derive the plan here —
-just the next three things, each with the ID that proves it done.
+Do not re-derive the plan here — just the next things, each with the ID that proves it done. **These three
+are independent and should run in parallel across the team.**
 
-1. **`I-13` — the published risk scores are all ~0.** Highest priority, and it is not a model bug:
-   the last day carrying a positive label is 2026-08-30 while features run to 2026-09-25, so scoring
-   at "today" scores a window where nothing *can* be within the horizon. The triage surface, the
-   money ranking, `T-94`, `T-86` and `T-87` all read that empty table. Fix belongs in the generator
-   (let damage continue past the window end) and **will move `T-8`/`T-10`'s headline**, so it needs
-   SA and its own story.
-2. **Curated layer** (`US-9`, `US-11`, `US-12`, `US-93`) — matched-band join, operating state,
-   one dynamic table with `TARGET_LAG`. Features and the detector both read `RAW`/`ML` directly (§7).
-   `CREATE DYNAMIC TABLE` is still unproven on the deploy account.
-3. **Metric layer + hand-worked fixtures** (`US-13`…`US-17`, `T-20`…`T-22`) — availability, lost
-   energy, LD exposure, OEE. `G3` depends on it.
+1. **`G3` — semantic view + verified queries + agent** (`US-27`…`US-32`, `T-29`, `T-33`…`T-35`). The one gate
+   not started, and due today. `CREATE SEMANTIC VIEW` and `CREATE AGENT` still unproven on this account.
+2. **`M10` — approval-gated writes and the audit trail** (`T-71`, `T-76`). The app's *Suppress* button already
+   runs the guards read-only; it needs a real approval path behind it.
+3. **Submission surface** — judge-facing README, 2-minute walkthrough, deck (`M13`). The app now exists to
+   record against.
 
-`Q-39` (Streamlit) is **closed** — verified working on 2026-09-18, ahead of D1.
+Then: curated layer + one dynamic table (`M12`); metric fixtures `T-20`…`T-22`; widen detector coverage to
+bring the 61.6% undetermined rate down honestly (`I-15`).
 
 ## 4. Blocked / needs a human decision
 
@@ -77,71 +71,47 @@ action*; the RAID log holds the rest.
 
 ## 5. What actually exists in Snowflake right now
 
-**The section git cannot tell you, and the one that wastes the most time when stale.** Update it
-whenever you create or drop an object.
+**The section git cannot tell you.** Update it whenever you create or drop an object.
 
-> **The account was found EMPTY on 2026-09-24.** We are still on `JKDRJBB-MW27072`
-> (locator `EB28292`), but the `WIND_OPS_AI_DEV_KR` database, the nine `WOA_*` roles and both
-> warehouses recorded here on 2026-09-22 **did not exist**. Everything below was re-deployed from
-> the recipes. Recorded in §7.
+> **Working account is now `BGTCHIX-UZ86048`** (locator `LM21871`, `AZURE_CENTRALINDIA`, trial, $400).
+> Moved on 2026-09-26 at NK's direction, so the team stops waiting on a credential for `JKDRJBB-MW27072`.
+> Everything below was deployed **from the recipes** — `just deploy-foundation → deploy-data → seed →
+> deploy-ml → deploy-engine → deploy-app`, about 20 minutes end to end. The objects previously recorded on
+> `JKDRJBB-MW27072` and `EXKFAFL-NW77746` still exist there but are **no longer the project's state**.
 >
-> **CoCo and the CLI are on different accounts.** The CoCo conversation is bound to
-> `HHWOUEB-WQ04283`; `snow` uses `SNOWFLAKE_DEFAULT_CONNECTION_NAME=jkdrjbb-mw27072`. Deploys go
-> to `JKDRJBB-MW27072`. Token credits bill to one account and warehouse credits to the other, so
-> **cost must be summed across both** (§6).
+> **To deploy here you need a non-interactive connection.** NK's is `woa_bgtchix` (JWT key-pair, `I-16`).
+> Teammates: create your own key-pair, or ask NK. `SNOWFLAKE_DEFAULT_CONNECTION_NAME=<yours> just target`.
 
-| Thing | State |
+| Thing | State on `BGTCHIX-UZ86048` |
 | --- | --- |
-| Databases | `WIND_OPS_AI_DEV_SB` — SB's dev clone, deployed 2026-09-24, **holds the full generated dataset**. `WIND_OPS_AI_DEV_JP` — foundation + dimensions only, no facts. `WIND_OPS_AI` (shared) not created |
-| Schemas | 10 per database: GEN, RAW, CURATED, SERVING, ML, ENGINE, ACTION, DOCS, OPS, APP — all owned by WOA_ADMIN |
-| Roles | 9 `WOA_*` roles: ADMIN, APP, AGENT, SCHEDULER, ENGINEER, RMC, PLANNER, EXEC, TECH. Hierarchy and grants applied |
-| Warehouses | `WOA_APP_WH`, `WOA_BUILD_WH` — both XSMALL, auto-suspend 60s |
-| RAW dimensions | 14, all seeded: `DIM_COMPONENT_CLASS` (10), `DIM_PLATFORM` (2), `DIM_SITE` (6), `DIM_CONTRACT` (6), `DIM_EXCLUSION_CLASS` (5), `DIM_TURBINE` (100), `DIM_COMPONENT` (1,000), `DIM_COMPONENT_GENEALOGY` (1,057 — 1,000 installs + 57 replacements), `DIM_SIGNAL` (4,100), `DIM_ALARM_CODE` (31), `DIM_FAILURE_CODE` (26), `DIM_CREW` (8), `DIM_PART` (19), `DIM_STOCK` (76) |
-| RAW facts (in `_SB`) | `FCT_SIGNAL_10MIN` **108,339,384** · `FCT_CMS_FEATURE` **3,524,000** · `FCT_ALARM_NORMALISED` **~340,040** · `FCT_TURBINE_STATE` **18,958** · `FCT_WORK_ORDER` **452** · `FCT_PART_MOVEMENT` **58** |
-| GEN objects | `GEN_DAMAGE_STATE` (184,000) · `GEN_TURBINE_DAY` (18,400) · `GEN_FAILURE_EVENT` (**58 seeded failures**) · `GEN_CMS_THRESHOLD` (8) · `GEN_SEEDED_PATTERN` (5) · `GEN_RUN_CONFIG` (run log) |
-| GEN functions | `FN_RAND`, `FN_WIND_SPEED`, `FN_EXPECTED_POWER`, `FN_RPM_BAND`, `FN_LOAD_BAND`, `FN_DAMAGE_RATE`; view `GEN_SITE_STRESSOR` |
-| GEN procedures | `SP_GENERATE_OPERATING_CONTEXT`, `SP_GENERATE_DAMAGE`, `SP_GENERATE_SIGNALS`, `SP_GENERATE_CMS_FEATURES`, `SP_GENERATE_TURBINE_STATE`, `SP_GENERATE_ALARMS`, `SP_GENERATE_CONSEQUENCES`, `SP_GENERATE_ALL` |
-| OPS objects | `DQ_ASSERTION` (16 catalogued) · `DQ_RESULT` (run history) · `SP_RUN_DATA_QUALITY` · `SP_ASSERT_QUALITY_GATE` |
-| ML objects (anomaly) | **`ANOMALY_DETECTOR`** (`SNOWFLAKE.ML.ANOMALY_DETECTION`, one object, `SERIES_COLNAME=COMPONENT_ID`) · `SCORE_COMPONENT_ANOMALY` (48,801 component-days, 4,661 flagged) · `ML_INDEPENDENCE_SPEC` (the pre-registered `T-18` bound) · views `V_ANOMALY_CUTOFF`/`V_ANOMALY_REFERENCE`/`V_ANOMALY_DETECT` · procedures `SP_TRAIN_ANOMALY_DETECTOR`, `SP_SCORE_ANOMALY`. **Deployed in `WIND_OPS_AI_DEV_NK` on `EXKFAFL-NW77746`, not yet on the team account (`I-14`)** |
-| ML objects | `RISK_CLASSIFIER` (`SNOWFLAKE.ML.CLASSIFICATION`) · `FEAT_COMPONENT_DAILY` (61,009 component-days, 1,259 positive) · `SCORE_COMPONENT_RISK` (400 scored) · `DRIVER_COMPONENT_RISK` (2,000 rows) · `ML_BASELINE_SPEC` (2 pre-registered baselines) · views `V_ML_SPLIT`/`V_ML_TRAIN`/`V_ML_TEST` · procedures `SP_BUILD_FEATURES`, `SP_TRAIN_RISK_CLASSIFIER`, `SP_EVALUATE_RISK_CLASSIFIER`, `SP_SCORE_COMPONENTS` |
-| OPS additions | `ML_RUN` (training runs) · `ML_METRIC` (held-out metrics for `T-87`) · `SP_RUN_ML_QUALITY` |
-| Semantic views, search services, agents, dynamic tables, anomaly detector | **None** |
-| Re-verified as *possible* on `JKDRJBB-MW27072` | `AI_COMPLETE('claude-sonnet-4-5')`, `AI_COMPLETE('llama3.1-8b')`, `SNOWFLAKE.CORTEX.COMPLETE`, `AI_EXTRACT`, `SNOWFLAKE.ML.CLASSIFICATION`, `ANOMALY_DETECTION`, `DOCUMENT_INTELLIGENCE`, `FORECAST`, `TOP_INSIGHTS`, `CREATE COMPUTE POOL`. Account params: `CORTEX_ENABLED_CROSS_REGION = ANY_REGION`, `ENABLE_CORTEX_ANALYST = true` |
-| **Still not proven** | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE DYNAMIC TABLE`, `CREATE AGENT`, `CREATE STREAMLIT`, `AI_PARSE_DOCUMENT`, `CREATE SERVICE`. Now that a database exists, these can be probed |
-| Newly proven | **`SNOWFLAKE.ML.ANOMALY_DETECTION` trains multi-series in one object, and `!DETECT_ANOMALIES()` works** (unlike the classifier's `!SHOW_FEATURE_IMPORTANCE()`). Constraint: every evaluation timestamp must fall **after** the last fitting timestamp |
-| Verified as **not** working | `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` (legacy names). `CREATE APPLICATION SERVICE` unavailable on trial accounts ([`ADR-0020`](docs/03-architecture/decisions/adr-0020-app-platform.md)) |
-| Untested | Notification integrations; MCP connector; `st.components` HTML inside SiS |
-| Other | `SNOWFLAKE_INTELLIGENCE` database does **not** exist — the agent needs `SNOWFLAKE_INTELLIGENCE.AGENTS` ([`04-code.md`](docs/03-architecture/04-code.md) §2) |
+| Database | **`WIND_OPS_AI_DEV_NK`** — full stack. `WIND_OPS_AI` (shared) **not created** |
+| Roles / warehouses | 9 `WOA_*` roles with hierarchy and grants · `WOA_APP_WH`, `WOA_BUILD_WH` (XSMALL, 60 s suspend) |
+| RAW | 14 dimensions seeded · `FCT_SIGNAL_10MIN` ~108.3M · `FCT_CMS_FEATURE` ~3.5M · `FCT_ALARM_NORMALISED` **340,431** · `FCT_TURBINE_STATE` · `FCT_WORK_ORDER` · 58 seeded failures |
+| ML | `RISK_CLASSIFIER` · `ANOMALY_DETECTOR` · `FEAT_COMPONENT_DAILY` · `SCORE_COMPONENT_RISK` (**400, as of 2026-08-26, 6 HIGH**) · `DRIVER_COMPONENT_RISK` · `SCORE_COMPONENT_ANOMALY` (48,813) · `ML_BASELINE_SPEC` · `ML_INDEPENDENCE_SPEC` · **`V_SCORING_ASOF`** |
+| SERVING | `V_WINDOW` · `MET_AVAILABILITY_CONTRACTUAL` · `MET_LD_EXPOSURE` (run-rate) |
+| ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` |
+| OPS | `DQ_ASSERTION` (31) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · three `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` |
+| APP | **`WOA_COMMAND_CENTER`** — Streamlit, **warehouse runtime** `SYSTEM$WAREHOUSE_RUNTIME`, Streamlit 1.52.2 from the Anaconda channel, warehouse `WOA_APP_WH`, source on `APP.WOA_APP_STAGE` |
+| **Not yet built** | semantic view · Cortex Search service · agent · dynamic tables · approval procedures · audit table · notification integration |
+| Proven possible here | `CREATE STREAMLIT` (warehouse runtime; container runtime creates but **cannot boot** without egress) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
+| Proven NOT possible | `CREATE APPLICATION SERVICE` (trial account, `ADR-0020`) · **`CREATE EXTERNAL ACCESS INTEGRATION`** (trial account) — so no PyPI, no MCP egress, no outbound calls from the app · `!SHOW_FEATURE_IMPORTANCE()` on the classifier (`I-8`) · legacy model names `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` |
+| Still unproven | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE AGENT`, `CREATE DYNAMIC TABLE` — all **verified during planning on this same account**, not re-probed since |
 
-Account `JKDRJBB-MW27072` (locator `EB28292`) · region `AZURE_CENTRALINDIA` · trial, **$400 budget**.
-Naming authority: [`04-code.md`](docs/03-architecture/04-code.md).
-
-**Every object here was created by a `just` recipe** — see
-[AGENTS.md · Deployment](AGENTS.md#deployment). If something exists in the account that no recipe
-creates, that is a defect: record it in §7 and fold it into a recipe.
+Naming authority: [`04-code.md`](docs/03-architecture/04-code.md). **Every object here was created by a `just`
+recipe** — see [AGENTS.md · Deployment](AGENTS.md#deployment).
 
 ## 6. Budget
 
-**Two accounts, and both must be summed.** CoCo token credits are billed in
-`HHWOUEB-WQ04283` (where the conversation runs); warehouse credits in `JKDRJBB-MW27072` (where
-SQL runs). Neither account alone shows what a session cost.
+| Source | Credits |
+| --- | --- |
+| CoCo token credits on `BGTCHIX` (`CORTEX_CODE_DESKTOP_USAGE_HISTORY`, 533 requests, cumulative) | **69.75** |
+| Warehouse on `BGTCHIX` (planning ≈ 2.6 + today's full rebuild ≈ 1.3) | **≈ 3.9** |
+| **Total on `BGTCHIX`** | **≈ 74** |
+| *Also spent elsewhere, not on the $400:* `JKDRJBB-MW27072` ≈ 43.9 (SB, KR, JP sessions) · `EXKFAFL-NW77746` ≈ 0.6 (NK, personal) | |
 
-| Source | Account | Credits |
-| --- | --- | --- |
-| CoCo token credits (`CORTEX_CODE_DESKTOP_USAGE_HISTORY.TOKEN_CREDITS`, 2-day window, 299 requests) | `HHWOUEB-WQ04283` | 41.65 |
-| Warehouse (`WAREHOUSE_METERING_HISTORY`, 2-day window) | `JKDRJBB-MW27072` | 2.28 |
-| **Total observed** | — | **≈ 43.9** |
-
-Generating 108M rows cost ~1.5 credits; training, evaluating and scoring the model cost under
-half a credit. The conversations that produced the code cost ~41.7. The ratio is now near
-**18:1** overall and **50:1** for the ML session — **warehouse metering alone under-reports by
-an order of magnitude, and the gap widens as the SQL gets cheaper and the reasoning harder.**
-Alert NK at each $100.
-
-`ACCOUNT_USAGE` lags up to three hours, so the current session is never fully reflected. The
-column is `TOKEN_CREDITS`, not `CREDITS`, and there are no `INPUT_TOKENS`/`OUTPUT_TOKENS`
-columns — see [`evidence/development/03`](docs/06-coco/evidence/development/03-synthetic-data-generator.md) §1
-for the real column list.
+**≈ 74 credits is past the second $100 alert** at list rates. `ACCOUNT_USAGE` lags up to three hours.
+A full rebuild from empty costs ≈ 1.3 warehouse credits; the reasoning around it costs ten to twenty times
+that. Always sum both sources. Alert NK at each $100.
 
 ## 7. Deviations from the plan
 
@@ -173,15 +143,21 @@ ADR or RAID reference, that is a defect.
 | **`T-18`'s population is the detection window, not `SCORE_COMPONENT_RISK`.** The planner snapshot gave ρ = 0.216, which **passed**, but its risk variance is 1e-12 so the number described nothing. The population changed; the pre-registered bound did not. Both figures are in `OPS.ML_METRIC` so the claim is checkable | `I-13`; [`ml-models.md` §2.1](docs/05-ai-ml/ml-models.md#21-the-t-18-bound-and-what-it-is-measured-on) |
 | **`sql/25_ml/05_anomaly.sql` added**, and `ML.ML_INDEPENDENCE_SPEC` / `SCORE_COMPONENT_ANOMALY` registered as naming-convention instances of `04-code.md` §3 (`SCORE_<subject>`). No new deployment stage was needed | This row; `04-code.md` §3 |
 
+| **Working account moved to `BGTCHIX-UZ86048`**, at NK's direction, so the team stops waiting on a `JKDRJBB-MW27072` credential. Full stack rebuilt from the recipes in ~20 min | §5; `I-16` |
+| **Risk is scored as of `window_end − horizon`**, not the last feature date (`I-13`). The app states the as-of date on every risk figure | `ML.V_SCORING_ASOF`; `raid-log.md` `I-13` |
+| **`30_serve/` and `40_engine/` exist but hold first cuts.** Availability and LD exposure have no hand-worked fixtures yet (`T-20`…`T-22`); the alarm engine has no approval path | This row |
+| **The *Suppress* button is read-only.** It runs every guard and shows the refusal, but writes nothing — approval-gated writes (`M10`) are not built, and the UI says so | `app/streamlit_app.py` |
+| **Incident window is 24 h, and nuisance requires the component to be monitored and the code not to recur within 14 days** — two conditions ADR-0017 states and the first cut omitted. The first cut hid 9 real failures | `sql/40_engine/01_alarm_incidents.sql` header; evidence 07 §5 |
+
+| **The app runs on the WAREHOUSE runtime, set explicitly — not the container runtime.** The container runtime installs every package from `pypi.org` at boot, and this trial account **cannot have external access**. Proven three ways: no `pyproject.toml` (runtime refuses to start), an empty one (*Streamlit library not found*), a real one (*DNS failure reaching pypi.org*). The warehouse runtime installs `environment.yml` from Snowflake's own Anaconda channel (Streamlit 1.52.2). `snow streamlit deploy` kept choosing the container runtime even on a clean recreate — Snowflake is moving new apps to default to it — so `deploy-app` now creates the app in SQL with `RUNTIME_NAME = 'SYSTEM$WAREHOUSE_RUNTIME'` and **asserts the runtime** after every deploy | `sql/80_app/`; `I-17` |
+
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/06-anomaly-detector.md`](docs/06-coco/evidence/development/06-anomaly-detector.md)
-— the second independent signal. `T-18` bound **pre-registered before measurement** at
-|Spearman ρ| ≤ 0.50, measured **0.222** over 48,801 component-days. Its degeneracy guard found
-**`I-13`** — every published risk score is ~0 — which no test aimed at it would have caught.
+[`docs/06-coco/evidence/development/07-app-and-prerequisites.md`](docs/06-coco/evidence/development/07-app-and-prerequisites.md)
+— the whole stack on `BGTCHIX`, the serving and alarm layers, and the app, executed headless with 0
+exceptions. **`T-60` caught the first alarm classifier hiding 9 real failures**; fixed from ADR-0017's
+text, not by tuning.
 
-Previous: [`development/05-t10-margin-and-operating-point.md`](docs/06-coco/evidence/development/05-t10-margin-and-operating-point.md).
-The index at [`development/README.md`](docs/06-coco/evidence/development/README.md) now lists all six
-entries; entries 02–05 had never been indexed.
+Previous: [`development/06-anomaly-detector.md`](docs/06-coco/evidence/development/06-anomaly-detector.md).
 
-Next entry goes in `docs/06-coco/evidence/development/07-<slug>.md`.
+Next entry goes in `docs/06-coco/evidence/development/08-<slug>.md`.

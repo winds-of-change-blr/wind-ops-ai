@@ -37,3 +37,6 @@ coverage.xml
 .vscode/
 *.swp
 .DS_Store
+
+# snow streamlit deploy build output
+app/output/

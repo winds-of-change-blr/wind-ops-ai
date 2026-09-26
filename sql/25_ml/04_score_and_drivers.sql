@@ -32,6 +32,16 @@ use role WOA_ADMIN;
 use database <% database %>;
 use warehouse WOA_BUILD_WH;
 
+-- The date scores are published "as of" (I-13). Derived, never hardcoded:
+-- the last feature date minus the horizon, i.e. the last date whose outcome
+-- is knowable. The app reads this to label every risk figure honestly.
+create or replace view ML.V_SCORING_ASOF as
+select
+    dateadd(day, -max(horizon_days), max(feature_date))::date as as_of_date,
+    max(feature_date)::date                                   as data_end_date,
+    max(horizon_days)                                         as horizon_days
+from ML.FEAT_COMPONENT_DAILY;
+
 create table if not exists ML.SCORE_COMPONENT_RISK (
     component_id       varchar(30)   not null,
     turbine_id         varchar(20)   not null,
@@ -82,6 +92,19 @@ begin
     select horizon_days into :horizon from OPS.ML_RUN where run_id = :run_id;
 
     -- score the most recent day available per component (daily batch, §7)
+    -- AS-OF DATE (I-13). Scoring used to take each component's LATEST feature
+    -- date, and every one of the 400 published scores came out between
+    -- 0.000001 and 0.000007: variance 1e-12, all MINIMAL, an empty triage
+    -- surface. Not a model fault — across the detection window the same model
+    -- has variance 0.026. The last day carrying ANY positive label is
+    -- window_end - horizon, because a label needs a full horizon of future to be
+    -- known. Scoring after that date scores a period in which, by construction,
+    -- nothing can be seen to fail.
+    --
+    -- So scoring is AS OF window_end - horizon. That is not stale data dressed
+    -- up: a 30-day-ahead prediction is only a claim you can check if 30 days of
+    -- future exist to check it against. ML.V_SCORING_ASOF exposes the date so
+    -- the app states it rather than implying the scores are "today".
     create or replace temporary table ML.ML_TMP_LATEST as
     select f.*
     from ML.FEAT_COMPONENT_DAILY f
@@ -89,6 +112,7 @@ begin
         select component_id, max(feature_date) as feature_date
         from ML.FEAT_COMPONENT_DAILY
         where not label_excluded
+          and feature_date <= (select as_of_date from ML.V_SCORING_ASOF)
         group by component_id
     ) l on l.component_id = f.component_id and l.feature_date = f.feature_date;
 
