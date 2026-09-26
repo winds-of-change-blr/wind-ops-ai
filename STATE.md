@@ -36,7 +36,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| NK | Window engine: `FR-33`, `FR-77`…`FR-80` (`T-31`, `T-71`, `T-72`, `T-74` accept/reject, `T-75`, `GS-3`, `VQ-8`) — **done, in review** | `feat/nk/window-engine` | 2026-09-26 | Clear this row when the PR merges |
+| SB | D10 incident evidence: `FR-70`/`ADR-0017` evidence rows (`T-68`), `UNDETERMINED` never hidden and rate published (`T-61`) | `feat/sb/incident-evidence` | 2026-09-26 | Built and verified on `WIND_OPS_AI_DEV_SB` (`JKDRJBB-MW27072`); NK's window-engine row cleared — PR #12 merged |
 
 ## 3. Next actions, in order
 
