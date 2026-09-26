@@ -65,6 +65,9 @@ ignore = []
 "tests/**" = ["S101"]
 # The app shows ×, ρ and − to users on purpose; they are not typos for x, p and -.
 "app/**" = ["RUF001"]
+# The maintenance-document corpus is prose; wrapping it at 100 columns only
+# hurts reading it. RUF001: the documents use real typography (°, —, ·).
+"scripts/generate_maintenance_docs.py" = ["E501", "RUF001"]
 
 [tool.ruff.format]
 docstring-code-format = true

@@ -280,11 +280,44 @@ deploy-engine: _resolve-db
 
     printf '\nserving + engine deployed and gated in %s.\n' "{{database}}"
 
-# DOCS + agent: Cortex Search service, semantic view wiring, CREATE AGENT.
-# Read-only tools only — seven of them (docs/05-ai-ml/agents-and-tools.md).
-[doc('DOCS + agent: Cortex Search service, semantic view wiring, CREATE AGENT')]
+# DOCS + agent (G3): semantic view, maintenance documents, search, agent.
+# Implements: US-27..US-32 · gated by 15_quality/13_run_verify_g3 (T-48 gating)
+#
+# Order matters: the agent's tools point at the semantic view and the search
+# service, so both must exist first. Documents are regenerated from
+# scripts/generate_maintenance_docs.py every time, never hand-edited.
+# Read-only tools only (AGENTS.md rule 2); DQ-AGENT-READ-ONLY reads the LIVE
+# agent spec, so a tool added in Snowsight fails the gate too.
+[doc('DOCS + agent: semantic view, documents, Cortex Search, CREATE AGENT, G3 gate')]
 [group('snowflake')]
-deploy-agent: _resolve-db (_todo "deploy-agent" "US-27..US-32")
+deploy-agent: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n\n' "{{connection}}"
+
+    printf '\n=== semantic view ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/30_serve/02_semantic_view.sql" -D "database={{database}}"
+
+    printf '\n=== documents: generate, stage, parse ===\n'
+    uv run --quiet --with reportlab python scripts/generate_maintenance_docs.py
+    {{snow_sql}} -f "{{sql_dir}}/60_docs/01_documents.sql" -D "database={{database}}"
+    for f in data/maintenance_docs/*.pdf; do
+        snow stage copy "$f" "@{{database}}.DOCS.MAINTENANCE_DOCS" --overwrite >/dev/null
+    done
+    printf 'use role WOA_ADMIN;\nuse database %s;\nuse warehouse WOA_BUILD_WH;\ncall DOCS.SP_PARSE_DOCUMENTS();\n' "{{database}}" \
+        | {{snow_sql}} --stdin
+
+    printf '\n=== search service, agent, G3 assertions ===\n'
+    for f in 60_docs/02_search_service 70_agent/01_agent 15_quality/05_g3_assertions; do
+        printf '\n--- %s ---\n' "$f"
+        {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
+    done
+
+    printf '\n=== gate on the G3 assertions (T-48 is gating) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/13_run_verify_g3.sql" -D "database={{database}}"
+
+    printf '\nagent deployed: %s.GEN.WOA_OPS_AGENT\n' "{{database}}"
 
 # APP schema: the Streamlit surfaces. Depends on Q-39 being answered.
 # Implements: US-38..US-43, US-90..US-92 (funnel, metric, baseline comparison)
@@ -342,6 +375,9 @@ verify: _resolve-db
 
     printf '\n=== G4: engine (T-60 gating) ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/12_run_verify_engine.sql" -D "database={{database}}"
+
+    printf '\n=== G3: semantic view, documents, agent (T-48 gating) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/13_run_verify_g3.sql" -D "database={{database}}"
 
     printf '\nverify passed against %s.\n' "{{database}}"
 
