@@ -259,7 +259,26 @@ deploy-ml horizon="30": _resolve-db
 # Nothing here may grant an agent a write tool (AGENTS.md rule 2).
 [doc('ENGINE/ACTION: correlator, ranking, guards, approval-gated writes, audit')]
 [group('snowflake')]
-deploy-engine: _resolve-db (_todo "deploy-engine" "US-53..US-73")
+deploy-engine: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n\n' "{{connection}}"
+
+    # Serving views first: ENG_ALERT_RANKED reads MET_AVAILABILITY_CONTRACTUAL.
+    for f in 30_serve/01_metrics 40_engine/01_alarm_incidents 40_engine/02_alert_ranked 15_quality/04_engine_assertions; do
+        printf '\n=== %s ===\n' "$f"
+        {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
+    done
+
+    printf '\n=== build incidents ===\n'
+    printf 'use role WOA_ADMIN;\nuse database %s;\nuse warehouse WOA_BUILD_WH;\ncall ENGINE.SP_BUILD_INCIDENTS();\n' "{{database}}" \
+        | {{snow_sql}} --stdin
+
+    printf '\n=== gate on the engine assertions (T-60 is gating) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/12_run_verify_engine.sql" -D "database={{database}}"
+
+    printf '\nserving + engine deployed and gated in %s.\n' "{{database}}"
 
 # DOCS + agent: Cortex Search service, semantic view wiring, CREATE AGENT.
 # Read-only tools only — seven of them (docs/05-ai-ml/agents-and-tools.md).
@@ -271,7 +290,18 @@ deploy-agent: _resolve-db (_todo "deploy-agent" "US-27..US-32")
 # Implements: US-38..US-43, US-90..US-92 (funnel, metric, baseline comparison)
 [doc('APP schema: the Streamlit surfaces')]
 [group('snowflake')]
-deploy-app: _resolve-db (_todo "deploy-app" "US-38..US-43, Q-39")
+deploy-app: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n\n' "{{connection}}"
+    # Container runtime, per ADR-0020 and the SiS deployment guidance. The
+    # manifest templates the database from WOA_DATABASE (NFR-6).
+    cd app
+    WOA_DATABASE="{{database}}" snow streamlit deploy --replace --prune
+    printf '\n=== verify the object exists (a clean exit is not proof) ===\n'
+    snow sql -q "show streamlits like 'WOA_COMMAND_CENTER' in database {{database}}"
+    WOA_DATABASE="{{database}}" snow streamlit get-url woa_command_center || true
 
 # Re-apply only what changed since the last deploy. The everyday command.
 # Must never drop or recreate anything holding data.
@@ -305,6 +335,9 @@ verify: _resolve-db
     # silently check only the second one.
     printf '\n=== G2: model ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/11_run_verify_ml.sql" -D "database={{database}}"
+
+    printf '\n=== G4: engine (T-60 gating) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/12_run_verify_engine.sql" -D "database={{database}}"
 
     printf '\nverify passed against %s.\n' "{{database}}"
 
