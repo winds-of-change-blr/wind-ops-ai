@@ -332,7 +332,7 @@ begin
                r.risk_probability, r.risk_band, r.anomaly_flag, r.top_drivers::varchar, r.expected_loss_inr,
                r.model_version, r.as_of_date,
                'NOT_SCHEDULED',
-               'No maintenance window chosen: the window engine (FR-33, ENG_WINDOW_CANDIDATE) is not built. The planner schedules this manually.',
+               'No maintenance window chosen yet. Accept a schedule suggestion (ENGINE.ENG_SUGGESTION) to attach an engine window; nothing here picks a date on its own.',
                null, 'DRAFT', :v_user, current_timestamp()::timestamp_ntz, :P_IDEMPOTENCY_KEY, :v_selftest
           from ENGINE.ENG_ALERT_RANKED r
           join (select * from RAW.DIM_PART

@@ -69,7 +69,15 @@ create or replace semantic view SERVING.SV_WIND_OPS
     lost as SERVING.MET_LOST_ENERGY
       primary key (turbine_id)
       with synonyms = ('lost energy', 'lost production', 'energy loss')
-      comment = 'Energy lost per turbine in MWh, split into downtime (power-curve energy while unavailable) and underperformance (shortfall against the fleet-median performance while running).'
+      comment = 'Energy lost per turbine in MWh, split into downtime (power-curve energy while unavailable) and underperformance (shortfall against the fleet-median performance while running).',
+    suggestion as ENGINE.ENG_SUGGESTION
+      primary key (suggestion_id)
+      with synonyms = ('schedule suggestion', 'maintenance plan', 'crane campaign', 'maintenance window')
+      comment = 'Schedule suggestions from the window engine for elevated-risk components over a rolling 12-week horizon: BUNDLE (several crane jobs at one site under one crane mobilisation), SCHEDULE (one job), or INFEASIBLE (no window satisfies every constraint; the binding constraint says why). Proposals only: nothing is scheduled until a planner accepts.',
+    plan as ENGINE.ENG_SUGGESTION_ITEM
+      primary key (suggestion_id, component_id)
+      with synonyms = ('planned job', 'scheduled job')
+      comment = 'One component within a schedule suggestion, with its engine window (start and end day), crew and part. Every window is a feasible engine candidate; INFEASIBLE items have no window.'
   )
   relationships (
     turbine_site     as turbine(site_code)      references site,
@@ -78,7 +86,10 @@ create or replace semantic view SERVING.SV_WIND_OPS
     ld_site          as ld(site_code)           references site,
     incident_turbine as incident(turbine_id)    references turbine,
     oee_turbine      as oee(turbine_id)         references turbine,
-    lost_turbine     as lost(turbine_id)        references turbine
+    lost_turbine     as lost(turbine_id)        references turbine,
+    plan_suggestion  as plan(suggestion_id)     references suggestion,
+    plan_turbine     as plan(turbine_id)        references turbine,
+    plan_risk        as plan(component_id)      references risk
   )
   facts (
     risk.risk_probability as risk_probability
@@ -120,7 +131,11 @@ create or replace semantic view SERVING.SV_WIND_OPS
     lost.lost_mwh_underperformance as lost_mwh_underperformance
       comment = 'Energy lost in MWh by running below the fleet-median performance.',
     lost.lost_mwh_total as lost_mwh_total
-      comment = 'Total energy lost in MWh: downtime plus underperformance.'
+      comment = 'Total energy lost in MWh: downtime plus underperformance.',
+    plan.planned_downtime_mwh as planned_downtime_mwh
+      comment = 'Energy the job itself costs in MWh: power-curve energy at forecast wind over the job days.',
+    suggestion.mobilisations_saved as mobilisations_saved
+      comment = 'Crane mobilisations saved by bundling: jobs in the bundle minus one.'
   )
   dimensions (
     site.site_code as site_code comment = 'Site code, e.g. KA-CTD, GJ-KCH, TN-TVL.',
@@ -152,7 +167,20 @@ create or replace semantic view SERVING.SV_WIND_OPS
     oee.is_underperforming as is_underperforming
       with synonyms = ('underperforming', 'underperforming while available')
       comment = 'True when performance is more than 1.5 points below the fleet median: losing energy while running, whatever the availability.',
-    oee.oee_definition as oee_definition comment = 'How OEE is defined here, including that Quality is not modelled.'
+    oee.oee_definition as oee_definition comment = 'How OEE is defined here, including that Quality is not modelled.',
+    suggestion.suggestion_id as suggestion_id comment = 'Schedule suggestion identifier (SG-B bundle, SG-S single job, SG-X infeasible).',
+    suggestion.suggestion_type as suggestion_type
+      with synonyms = ('plan type', 'bundle', 'crane campaign')
+      comment = 'BUNDLE (one crane mobilisation for several jobs), SCHEDULE (one job), or INFEASIBLE.',
+    suggestion.scheduled_crew_id as crew_id comment = 'The crew the suggestion assigns (crane teams are CRW-CR01 South and CRW-CR02 West).',
+    suggestion.binding_constraint as binding_constraint
+      with synonyms = ('why not scheduled', 'blocking constraint')
+      comment = 'For INFEASIBLE suggestions: the constraint that rules out every window, and when it clears.',
+    suggestion.suggestion_reasoning as reasoning comment = 'Plain-language explanation of the suggestion.',
+    plan.planned_start_day as start_day comment = 'First day of the engine window for this job.',
+    plan.planned_end_day as end_day comment = 'Last day of the engine window for this job.',
+    plan.earliest_limited_by as earliest_limited_by
+      comment = 'What set the date: the constraint that fails the day before (weather, part, crane mobilisation, crew commitment).'
   )
   metrics (
     risk.total_expected_loss_inr as sum(risk.expected_loss_inr)
@@ -179,6 +207,12 @@ create or replace semantic view SERVING.SV_WIND_OPS
     oee.underperforming_turbines as count_if(oee.is_underperforming)
       comment = 'Number of turbines running more than 1.5 points below fleet-median performance.',
     lost.total_lost_mwh as sum(lost.lost_mwh_total)
-      comment = 'Total energy lost in MWh across the selected turbines.'
+      comment = 'Total energy lost in MWh across the selected turbines.',
+    suggestion.crane_mobilisations_saved as sum(suggestion.mobilisations_saved)
+      comment = 'Crane mobilisations saved by bundling jobs into campaigns.',
+    suggestion.expected_loss_covered_inr as sum(suggestion.expected_loss_covered_inr)
+      comment = 'Expected loss in INR covered by the suggested jobs (zero for INFEASIBLE).',
+    plan.planned_jobs as count(plan.component_id)
+      comment = 'Number of components in the selected suggestions.'
   )
   comment = 'Wind Ops AI command center: component failure risk and expected loss, contractual availability, LD exposure, and classified alarm incidents for a fictional Indian wind OEM (100 turbines, 6 sites). SYNTHETIC DATA ONLY.';

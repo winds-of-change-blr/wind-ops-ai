@@ -213,7 +213,7 @@ deploy-data: _resolve-db
     for f in 01_dimension_tables 02_fact_tables 03_seed_dimensions \
              04_generator_functions 05_operating_context 06_damage_and_failures \
              07_signals 08_cms_features 09_turbine_state 10_alarms \
-             11_consequences 13_underperformance 12_generate_all; do
+             11_consequences 13_underperformance 14_planning_context 12_generate_all; do
         printf '\n=== 10_generate/%s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/10_generate/${f}.sql" -D "database={{database}}"
     done
@@ -276,7 +276,7 @@ deploy-engine: _resolve-db
     printf 'connection : %s\n\n' "{{connection}}"
 
     # Serving views first: ENG_ALERT_RANKED reads MET_AVAILABILITY_CONTRACTUAL.
-    for f in 30_serve/01_metrics 40_engine/01_alarm_incidents 40_engine/02_alert_ranked 30_serve/03_energy_and_oee 15_quality/04_engine_assertions; do
+    for f in 30_serve/01_metrics 40_engine/01_alarm_incidents 40_engine/02_alert_ranked 30_serve/03_energy_and_oee 40_engine/03_window_candidates 40_engine/04_suggestions 15_quality/04_engine_assertions; do
         printf '\n=== %s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
     done
@@ -284,6 +284,12 @@ deploy-engine: _resolve-db
     # 108M signal rows -> ~18k turbine-days, once, so OEE is not recomputed per page.
     printf '\n=== build turbine-day energy (OEE, lost energy) ===\n'
     printf 'use role WOA_ADMIN;\nuse database %s;\nuse warehouse WOA_BUILD_WH;\ncall SERVING.SP_BUILD_TURBINE_DAY();\n' "{{database}}" \
+        | {{snow_sql}} --stdin
+
+    # Window engine (CMP-9) then suggestions (ADR-0018): candidates first, because
+    # suggestions may only select from them (T-71).
+    printf '\n=== build window candidates and schedule suggestions ===\n'
+    printf 'use role WOA_ADMIN;\nuse database %s;\nuse warehouse WOA_BUILD_WH;\ncall ENGINE.SP_BUILD_WINDOW_CANDIDATES();\ncall ENGINE.SP_BUILD_SUGGESTIONS();\n' "{{database}}" \
         | {{snow_sql}} --stdin
 
     printf '\n=== build incidents ===\n'
@@ -405,6 +411,9 @@ verify: _resolve-db
     {{snow_sql}} -f "{{sql_dir}}/15_quality/14_run_verify_action.sql" -D "database={{database}}"
     just _role-writes-refused
 
+    printf '\n=== G4: the plan is never invented (T-71, T-31 gating; T-72, T-74, T-75) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/16_run_verify_planning.sql" -D "database={{database}}"
+
     printf '\nverify passed against %s.\n' "{{database}}"
 
 # ACTION: the approval procedures — the ONLY write path (ADR-0005, M10).
@@ -418,13 +427,16 @@ deploy-action: _resolve-db
     set -euo pipefail
     printf 'database   : %s\n' "{{database}}"
     printf 'connection : %s\n\n' "{{connection}}"
-    for f in 60_docs/03_part_procedure 50_action/01_action_tables 50_action/02_action_procedures 50_action/03_action_grants 15_quality/06_action_assertions; do
+    for f in 60_docs/03_part_procedure 50_action/01_action_tables 50_action/02_action_procedures 50_action/03_action_grants 50_action/04_planning_procedures 15_quality/06_action_assertions 15_quality/08_planning_assertions; do
         printf '\n=== %s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
     done
     printf '\n=== gate on the action assertions ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/14_run_verify_action.sql" -D "database={{database}}"
     just _role-writes-refused
+
+    printf '\n=== G4: the plan is never invented (T-71, T-31 gating; T-72, T-74, T-75) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/16_run_verify_planning.sql" -D "database={{database}}"
     printf '\naction layer deployed and gated in %s.\n' "{{database}}"
 
 # T-33, behavioural half: a real INSERT into ACTION as WOA_APP and as

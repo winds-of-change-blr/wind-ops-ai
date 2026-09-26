@@ -74,6 +74,10 @@ begin
     call GEN.SP_GENERATE_UNDERPERFORMANCE(:window_start, :window_end, :seed);
     log := log || (select * from table(result_scan(last_query_id()))) || '\n';
 
+    -- Forecast, crews, crane commitments and orders for the window engine (CMP-9).
+    call GEN.SP_GENERATE_PLANNING_CONTEXT(:window_start, :window_end, :seed);
+    log := log || (select * from table(result_scan(last_query_id()))) || '\n';
+
     merge into GEN.GEN_RUN_CONFIG tgt
     using (
         select

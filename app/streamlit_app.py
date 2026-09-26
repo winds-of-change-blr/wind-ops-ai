@@ -395,8 +395,8 @@ with t_triage:
         st.caption(
             "A draft is made only for MEDIUM or HIGH risk, and carries the evidence as it "
             "stands now. Approval re-checks that evidence against the engine and writes one "
-            "work order, however many times it is clicked. **No window, crew or crane is "
-            "booked** — the window engine is not built, and the draft says so."
+            "work order, however many times it is clicked. A draft gets a window, crew and "
+            "crane only when a planner accepts a schedule suggestion below."
         )
         if st.button("Draft a work order", icon=":material/edit_note:"):
             _show(_call("ACTION.SP_DRAFT_WORK_ORDER", [cid, _key("draft", cid), _viewer()]))
@@ -457,9 +457,111 @@ with t_triage:
             elif pd.notna(d.work_order_id):
                 st.success(
                     f"Work order `{d.work_order_id}` approved by {d.approved_by} at "
-                    f"{d.approved_at}. Not yet scheduled.",
+                    f"{d.approved_at}. Window: {d.window_status}.",
                     icon=":material/assignment_turned_in:",
                 )
+
+    # ------------------------------------------------------------- planning
+    plan = _fresh(
+        f"""select s.suggestion_id, s.suggestion_type, s.site_code, s.crew_id, s.start_day,
+                   s.end_day, s.component_count, s.mobilisations_saved,
+                   s.expected_loss_covered_inr, s.planned_downtime_mwh, s.binding_constraint,
+                   s.reasoning, s.plan_start,
+                   listagg(i.component_id, ', ') within group (order by i.start_day) as components,
+                   listagg(i.earliest_limited_by, ' | ') within group (order by i.start_day)
+                       as limited_by,
+                   max(dc.decision) as decision
+            from {q("ENGINE.ENG_SUGGESTION")} s
+            join {q("ENGINE.ENG_SUGGESTION_ITEM")} i on i.suggestion_id = s.suggestion_id
+            left join {q("ACTION.ACT_DECISION")} dc
+                   on dc.subject_id = s.suggestion_id and not dc.is_selftest
+            group by all
+            order by decode(s.suggestion_type, 'BUNDLE', 0, 'SCHEDULE', 1, 2), s.start_day"""
+    )
+    if not plan.empty:
+        st.subheader("Planning — windows the engine can vouch for")
+        st.caption(
+            f"Rolling 12 weeks from {plan.iloc[0]['plan_start']}. Every window passed all six "
+            "constraints (forecast wind, crew certification and commitments, part in hand, "
+            "crane mobilisation, horizon); nothing here was proposed by a model. Forecast, "
+            "crews and crane bookings are synthetic."
+        )
+        impact = _fresh(f"select * from {q('ENGINE.ENG_PLAN_IMPACT')}")
+        if not impact.empty:
+            im = impact.iloc[0]
+            p1, p2, p3, p4 = st.columns(4)
+            p1.metric("Expected loss covered", f"₹{im.covered_expected_loss_inr / 1e5:,.1f} L")
+            p2.metric("Left uncovered", f"₹{im.uncovered_expected_loss_inr / 1e5:,.1f} L")
+            p3.metric("Crane mobilisations saved", int(im.crane_mobilisations_saved))
+            p4.metric("Energy the work costs", f"{im.planned_downtime_mwh:,.1f} MWh")
+        st.dataframe(
+            plan[
+                [
+                    "suggestion_type",
+                    "site_code",
+                    "components",
+                    "crew_id",
+                    "start_day",
+                    "end_day",
+                    "expected_loss_covered_inr",
+                    "binding_constraint",
+                    "limited_by",
+                    "decision",
+                ]
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        open_plan = plan[(plan.suggestion_type != "INFEASIBLE") & plan.decision.isna()]
+        if not open_plan.empty:
+            label = {
+                r.suggestion_id: f"{r.suggestion_type} · {r.site_code} · {r.components}"
+                for r in open_plan.itertuples()
+            }
+            sid = st.selectbox("Suggestion", list(label), format_func=label.get)
+            st.caption(open_plan.set_index("suggestion_id").loc[sid, "reasoning"])
+            b1, b2, b3 = st.columns([1, 1, 2])
+            if b1.button("Accept schedule", type="primary", icon=":material/event_available:"):
+                _show(_call("ACTION.SP_ACCEPT_SUGGESTION", [sid, _key("accept", sid), _viewer()]))
+            reason = b3.selectbox(
+                "Reject reason",
+                [
+                    "CREW_PREFERENCE",
+                    "CUSTOMER_OUTAGE",
+                    "BUNDLE_DIFFERENTLY",
+                    "RISK_DISPUTED",
+                    "OTHER",
+                ],
+                key="plan_reason",
+            )
+            pnote = b3.text_input("Note (required for OTHER)", key="plan_note")
+            if b2.button("Reject", icon=":material/event_busy:", key="plan_reject"):
+                _show(
+                    _call(
+                        "ACTION.SP_REJECT_SUGGESTION",
+                        [sid, reason, pnote, _key("reject_plan", sid), _viewer()],
+                    )
+                )
+            st.caption(
+                "Accepting schedules drafts that already exist — draft each component's work "
+                "order first. It is refused if the engine no longer vouches for the window."
+            )
+
+        with st.expander("Why not sooner? Per-constraint results for one component"):
+            comps = sorted(
+                {c.strip() for cs in plan.components for c in str(cs).split(",") if c.strip()}
+            )
+            pick = st.selectbox("Component", comps, key="plan_comp")
+            cand = _run(
+                f"""select start_day, crew_id, is_feasible, weather_ok, crew_certified,
+                           crew_available, part_available, mobilisation_ok, within_horizon,
+                           max_forecast_gust_ms, gust_limit_ms, part_source, crew_conflict
+                    from {q("ENGINE.ENG_WINDOW_CANDIDATE")}
+                    where component_id = ? and crew_certified
+                    order by start_day, crew_id""",
+                params=[pick],
+            )
+            st.dataframe(cand, hide_index=True, width="stretch", height=300)
 
 # --------------------------------------------------------------------------- model
 with t_model:
