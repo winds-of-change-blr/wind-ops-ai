@@ -69,6 +69,11 @@ begin
     call GEN.SP_GENERATE_CONSEQUENCES(:window_start, :window_end, :seed);
     log := log || (select * from table(result_scan(last_query_id()))) || '\n';
 
+    -- Last: it edits ACTIVE_POWER / YAW_ERROR in place, and the alarm step
+    -- clears GEN_SEEDED_PATTERN, which is what makes this run exactly once.
+    call GEN.SP_GENERATE_UNDERPERFORMANCE(:window_start, :window_end, :seed);
+    log := log || (select * from table(result_scan(last_query_id()))) || '\n';
+
     merge into GEN.GEN_RUN_CONFIG tgt
     using (
         select
