@@ -91,3 +91,19 @@ documented path is closed to us on a trial account, we verified that rather than
 open path would have required us to rebuild role-based access control that the platform otherwise
 gives us. Declining a capability for a stated reason reads as judgement; being unable to name why reads
 as a gap.
+
+## Amendment — 2026-09-26: warehouse runtime, not container runtime (`I-17`)
+
+Within Streamlit in Snowflake there are two runtimes, and the one this ADR implicitly assumed does not
+work here. The **container runtime** installs every Python package from `pypi.org` when the app boots,
+which requires an external access integration — and **"External access is not supported for trial
+accounts."** Tried three ways; all failed at boot. The **warehouse runtime** installs `environment.yml`
+from Snowflake's own Anaconda channel, needs no egress, and ships Streamlit 1.52.2.
+
+The runtime is set **explicitly** (`RUNTIME_NAME = 'SYSTEM$WAREHOUSE_RUNTIME'`), because Snowflake is
+moving new apps to default to the container runtime and `snow streamlit deploy` already did so on a clean
+recreate. `just deploy-app` asserts the runtime after every deploy.
+
+**What this costs:** each viewer gets their own app instance on the warehouse, rather than one shared
+container; and packages are limited to the Anaconda channel. Neither matters for a read-only demo app.
+The governance argument above is unchanged — the app still runs as the viewer's role.

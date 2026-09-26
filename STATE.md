@@ -91,9 +91,9 @@ action*; the RAID log holds the rest.
 | SERVING | `V_WINDOW` · `MET_AVAILABILITY_CONTRACTUAL` · `MET_LD_EXPOSURE` (run-rate) |
 | ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` |
 | OPS | `DQ_ASSERTION` (31) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · three `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` |
-| APP | **`WOA_COMMAND_CENTER`** — Streamlit, container runtime `SYSTEM$ST_CONTAINER_RUNTIME_PY3_11`, pool `SYSTEM_COMPUTE_POOL_CPU`, warehouse `WOA_APP_WH` |
+| APP | **`WOA_COMMAND_CENTER`** — Streamlit, **warehouse runtime** `SYSTEM$WAREHOUSE_RUNTIME`, Streamlit 1.52.2 from the Anaconda channel, warehouse `WOA_APP_WH`, source on `APP.WOA_APP_STAGE` |
 | **Not yet built** | semantic view · Cortex Search service · agent · dynamic tables · approval procedures · audit table · notification integration |
-| Proven possible here | `CREATE STREAMLIT` (container runtime) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
+| Proven possible here | `CREATE STREAMLIT` (warehouse runtime; container runtime creates but **cannot boot** without egress) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
 | Proven NOT possible | `CREATE APPLICATION SERVICE` (trial account, `ADR-0020`) · **`CREATE EXTERNAL ACCESS INTEGRATION`** (trial account) — so no PyPI, no MCP egress, no outbound calls from the app · `!SHOW_FEATURE_IMPORTANCE()` on the classifier (`I-8`) · legacy model names `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` |
 | Still unproven | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE AGENT`, `CREATE DYNAMIC TABLE` — all **verified during planning on this same account**, not re-probed since |
 
@@ -145,12 +145,11 @@ ADR or RAID reference, that is a defect.
 
 | **Working account moved to `BGTCHIX-UZ86048`**, at NK's direction, so the team stops waiting on a `JKDRJBB-MW27072` credential. Full stack rebuilt from the recipes in ~20 min | §5; `I-16` |
 | **Risk is scored as of `window_end − horizon`**, not the last feature date (`I-13`). The app states the as-of date on every risk figure | `ML.V_SCORING_ASOF`; `raid-log.md` `I-13` |
-| **The app deploys with `snow streamlit deploy`, container runtime** — not the warehouse runtime, and not a `CREATE STREAMLIT` SQL file. Pre-installed packages only, so no PyPI integration is needed | `app/snowflake.yml`; `ADR-0020` |
 | **`30_serve/` and `40_engine/` exist but hold first cuts.** Availability and LD exposure have no hand-worked fixtures yet (`T-20`…`T-22`); the alarm engine has no approval path | This row |
 | **The *Suppress* button is read-only.** It runs every guard and shows the refusal, but writes nothing — approval-gated writes (`M10`) are not built, and the UI says so | `app/streamlit_app.py` |
 | **Incident window is 24 h, and nuisance requires the component to be monitored and the code not to recur within 14 days** — two conditions ADR-0017 states and the first cut omitted. The first cut hid 9 real failures | `sql/40_engine/01_alarm_incidents.sql` header; evidence 07 §5 |
 
-| **The app deploys an EMPTY `pyproject.toml`.** The container runtime refuses to start without one (*"Installing dependencies failed because the pyproject.toml file does not exist"*), and this trial account **cannot have an external access integration** (*"External access is not supported for trial accounts"*), so nothing can be fetched from PyPI. The app is limited to pre-installed packages for the rest of the hackathon. The earlier `--prune` fix deleted a runtime-seeded `pyproject.toml` and broke the app | `app/pyproject.toml`; `I-17` |
+| **The app runs on the WAREHOUSE runtime, set explicitly — not the container runtime.** The container runtime installs every package from `pypi.org` at boot, and this trial account **cannot have external access**. Proven three ways: no `pyproject.toml` (runtime refuses to start), an empty one (*Streamlit library not found*), a real one (*DNS failure reaching pypi.org*). The warehouse runtime installs `environment.yml` from Snowflake's own Anaconda channel (Streamlit 1.52.2). `snow streamlit deploy` kept choosing the container runtime even on a clean recreate — Snowflake is moving new apps to default to it — so `deploy-app` now creates the app in SQL with `RUNTIME_NAME = 'SYSTEM$WAREHOUSE_RUNTIME'` and **asserts the runtime** after every deploy | `sql/80_app/`; `I-17` |
 
 ## 8. Latest evidence entry
 

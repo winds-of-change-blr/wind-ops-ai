@@ -295,13 +295,17 @@ deploy-app: _resolve-db
     set -euo pipefail
     printf 'database   : %s\n' "{{database}}"
     printf 'connection : %s\n\n' "{{connection}}"
-    # Container runtime, per ADR-0020 and the SiS deployment guidance. The
-    # manifest templates the database from WOA_DATABASE (NFR-6).
-    cd app
-    WOA_DATABASE="{{database}}" snow streamlit deploy --replace --prune
-    printf '\n=== verify the object exists (a clean exit is not proof) ===\n'
-    snow sql -q "show streamlits like 'WOA_COMMAND_CENTER' in database {{database}}"
-    WOA_DATABASE="{{database}}" snow streamlit get-url woa_command_center || true
+    # Warehouse runtime, set explicitly in SQL (I-17): the container runtime
+    # needs pypi.org, and this trial account can have no external access.
+    {{snow_sql}} -f "{{sql_dir}}/80_app/01_streamlit.sql" -D "database={{database}}"
+    for f in app/streamlit_app.py app/environment.yml; do
+        snow stage copy "$f" "@{{database}}.APP.WOA_APP_STAGE" --overwrite
+    done
+    {{snow_sql}} -f "{{sql_dir}}/80_app/02_create_streamlit.sql" -D "database={{database}}"
+    printf '\n=== verify runtime and existence (a clean exit is not proof) ===\n'
+    snow sql -q "describe streamlit {{database}}.APP.WOA_COMMAND_CENTER" --format json \
+        | python3 -c 'import json,sys; r=json.load(sys.stdin)[0]; print("runtime:", r["runtime_name"]); assert r["runtime_name"]=="SYSTEM$WAREHOUSE_RUNTIME", "wrong runtime"'
+    printf '\napp deployed: Snowsight > Projects > Streamlit > WOA_COMMAND_CENTER\n'
 
 # Re-apply only what changed since the last deploy. The everyday command.
 # Must never drop or recreate anything holding data.
