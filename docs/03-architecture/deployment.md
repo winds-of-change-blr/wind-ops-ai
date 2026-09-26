@@ -77,7 +77,7 @@ non-zero until implemented (`US-44`).
 | `just deploy-ml` | `python/ml` — fails loudly if the model does not beat both baselines (`T-10`) |
 | `just deploy-engine` | `40_engine`, `50_action` |
 | `just deploy-agent` | `60_docs`, `70_agent`, `30_serve/02_semantic_view` |
-| `just deploy-action` | `50_action` (tables, approval procedures, grants), gated by `15_quality/06` and the `T-33` direct-write check |
+| `just deploy-action` | `50_action` (tables, approval procedures, grants, **`04_planning_procedures`** accept/reject a schedule), gated by `15_quality/06` and `08` (planning, `T-71`/`T-31` gating) and the `T-33`/`T-47` role checks |
 | `just deploy` | The whole chain in dependency order — foundation → data → seed → ml → engine (incl. `30_serve/03` energy and OEE) → agent (incl. the numbers gate) → action → app — then `verify`. `T-52` ran it twice into a clean database |
 | `just results` | Writes `docs/08-delivery/results.md` from `OPS` and the metric views (`T-92`, `T-95`). Never edit that file by hand |
 | `just teardown-db <name>` | Drops one personal database only; leaves the shared roles and warehouses (unlike `just teardown`) |

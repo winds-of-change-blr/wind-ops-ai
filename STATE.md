@@ -1,7 +1,7 @@
 # Current state — read this first, update it last
 
 > **Last updated:** 2026-09-26 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
-> **Plan day:** D9 · **Working account: `BGTCHIX-UZ86048`** (moved here 2026-09-26, per NK) · **Branch:** `feat/nk/numbers-and-gates`
+> **Plan day:** D9 · **Working account: `BGTCHIX-UZ86048`** (moved here 2026-09-26, per NK) · **Branch:** `feat/nk/window-engine`
 > **The app exists:** `WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER` — https://app.snowflake.com/BGTCHIX/uz86048/#/streamlit-apps/WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER
 > **The agent exists:** `WIND_OPS_AI_DEV_NK.GEN.WOA_OPS_AGENT` — Snowsight › AI & ML › Agents
 
@@ -21,12 +21,12 @@ called the agent work "`G3`"; the plan's `G3` is **the numbers**, and that was n
 | **G1** — data is worth modelling (D4) | **PASSED** — 16 assertions | — |
 | **G2** — the model is real (D9) | **PASSED** — 13 assertions: `T-10` **1.76×**, `T-18` ρ **0.243**, **`T-87`** (scores come from the run the app displays), **`T-94`** (the rule-vs-model comparison reconciles to that run) | — |
 | **G3** — the numbers are trustworthy (D9) | **PASSED** — 10 assertions, 7 gating: hand-worked fixtures **`T-20`** (availability, 95→97% step), **`T-21`** (lost energy), **`T-22`** (LD = ₹260,959, the business case's ≈ ₹2.6 L); **`T-23`** OEE = A × P on all 100 turbines; **`T-24`** semantic view = metric views on 6 metrics; **`T-25`** no constant factor; `GS-5` caught | the agent leg of `T-24` is shown in evidence, not gated (needs a model call) |
-| **G4** — action is safe (D12) | **PASSED (except `T-71`, `T-74`)** — approval core (evidence 09), **`T-47`** (DDL/DELETE/UPDATE as `WOA_AGENT` refused), **`T-48`** (agent read-only), **`T-33`** now also covers `WOA_SCHEDULER` | `T-71` (no window engine), `T-74` (confirm/dismiss/reinstate), `T-76` behavioural half (no scheduled task) |
+| **G4** — action is safe (D12) | **PASSED (except the incident half of `T-74`)** — approval core (evidence 09), **`T-47`**, **`T-48`**, **`T-33`** × 3 roles; and the **window engine** (evidence 11): **`T-71`** (gating: every suggested window, crew and part is a feasible engine row), **`T-31`** (gating: every feasible window re-derived from source), no double-booking (gating), `T-72` binding constraint, `T-75` impact reconciles, `GS-3` crane campaign, `T-74` accept/reject half | `T-74` incident half (confirm/dismiss/reinstate), `T-76` behavioural half (no scheduled task), `T-73` free-text constraints (not built) |
 | **G5** — demo-ready (D15) | **Built, not yet submittable** — app with OEE, writes and *Audit*; **`T-86`** funnel reconciles (every one of 340,431 alarms in exactly one incident); **`T-92`/`T-95`** `just results` generates `docs/08-delivery/results.md`; `T-52` see §7; `T-37`/`T-42` answer-quality checks | README (`T-89`), walkthrough (`T-90`), deck, `T-93` |
 
-`just verify` runs **six** suites — **16 data + 10 ML + 5 engine + 5 answers + 10 numbers + 12 action = 58
-assertions**, plus the behavioural role checks (`T-33` × 3 roles, `T-47` × 5 statements) — and exits non-zero on
-any failure. `just results` prints the same tally from `OPS`.
+`just verify` runs **seven** suites — **16 data + 10 ML + 5 engine + 5 answers + 10 numbers + 12 action + 7 planning
+= 65 assertions**, plus the behavioural role checks (`T-33` × 3 roles, `T-47` × 5 statements) — and exits non-zero
+on any failure. `just results` prints the same tally from `OPS`.
 
 ## 2. In flight — claim before you start
 
@@ -36,7 +36,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| NK | `G3` numbers (`T-20`…`T-25`), `GS-5` seed, `T-47`, `T-86`, `T-87`, `T-94`, `just results`, `just deploy` + `T-52` — **done, in review** | `feat/nk/numbers-and-gates` | 2026-09-26 | Clear this row when the PR merges |
+| NK | Window engine: `FR-33`, `FR-77`…`FR-80` (`T-31`, `T-71`, `T-72`, `T-74` accept/reject, `T-75`, `GS-3`, `VQ-8`) — **done, in review** | `feat/nk/window-engine` | 2026-09-26 | Clear this row when the PR merges |
 
 ## 3. Next actions, in order
 
@@ -46,14 +46,18 @@ are independent and should run in parallel across the team.**
 1. **Submission surface** — judge-facing README (`T-89`: a stranger reaches a working system from it), 2-minute
    walkthrough (`T-90`), deck, `T-93` criteria map. **Build `results.md` first** with `just results` and quote
    it, never retype. Demo beats: a protection trip refused; one work order however many clicks; the three
-   yaw-misaligned turbines that availability calls healthy (OEE tab); the *Audit* tab.
+   yaw-misaligned turbines that availability calls healthy (OEE tab); **the TN-TVL crane campaign, and the
+   MH-STR bearing the engine refuses to schedule because the part lands after the horizon** (Planning); the
+   *Audit* tab.
 2. **Put the agent in the app** — an *Ask* tab calling `GEN.WOA_OPS_AGENT`, showing citations.
-3. **The window engine** (`FR-33`, `ENG_WINDOW_CANDIDATE`) — drafts say `NOT_SCHEDULED` until it exists,
-   and `T-71` cannot run without it.
+3. **Execution and testing evidence** — `execution/01` (an end-to-end run through `just`) and `testing/01`
+   (adversarial agent probes `T-43`…`T-46`, including asking the agent to invent a slot for `T-71`'s adversarial
+   half; degraded modes `T-45`, `T-98`).
 
-Then: fold risk into `ENG_INCIDENT.is_elevated` (`I-19`); verified queries for `VQ-1`, `VQ-4`, `VQ-5`, `VQ-7`;
-`T-74` decision paths; curated layer + one dynamic table (`M12`); widen detector coverage (`I-15`);
-`just cost` and `just update` are still placeholders.
+Then: fold risk into `ENG_INCIDENT.is_elevated` (`I-19`); verified queries for `VQ-1`, `VQ-4`, `VQ-5`, `VQ-7`,
+`VQ-8`; `T-74` incident decision paths; `T-73` free-text constraints; a scheduled task + digest (`T-76`, `T-77`);
+curated layer + one dynamic table (`M12`); widen detector coverage (`I-15`); `just cost` and `just update` are
+still placeholders.
 
 ## 4. Blocked / needs a human decision
 
@@ -93,15 +97,15 @@ action*; the RAID log holds the rest.
 | --- | --- |
 | Database | **`WIND_OPS_AI_DEV_NK`** — full stack. `WIND_OPS_AI` (shared) **not created** |
 | Roles / warehouses | 9 `WOA_*` roles with hierarchy and grants · `WOA_APP_WH`, `WOA_BUILD_WH` (XSMALL, 60 s suspend) |
-| RAW | 14 dimensions seeded · `FCT_SIGNAL_10MIN` ~108.3M (**3 turbines' power and yaw edited in place by the `GS-5` seed**) · `FCT_CMS_FEATURE` ~3.5M · `FCT_ALARM_NORMALISED` **340,431** · `FCT_TURBINE_STATE` · `FCT_WORK_ORDER` · 58 seeded failures |
+| RAW | 14 dimensions seeded · `FCT_SIGNAL_10MIN` ~108.3M (**3 turbines' power and yaw edited in place by the `GS-5` seed**) · `FCT_CMS_FEATURE` ~3.5M · `FCT_ALARM_NORMALISED` **340,431** · `FCT_TURBINE_STATE` · `FCT_WORK_ORDER` · 58 seeded failures · planning context: `FCT_WIND_FORECAST` (504 site-days), `DIM_CREW_COVERAGE`, `FCT_CRANE_BOOKING` (2), `FCT_PART_INBOUND` (1), `DIM_REPAIR_PLAN`; `DIM_CREW.certifications` filled |
 | ML | `RISK_CLASSIFIER` · `ANOMALY_DETECTOR` · `FEAT_COMPONENT_DAILY` · `SCORE_COMPONENT_RISK` (**400, as of 2026-08-26, 6 HIGH**) · `DRIVER_COMPONENT_RISK` · `SCORE_COMPONENT_ANOMALY` (48,813) · `ML_BASELINE_SPEC` · `ML_INDEPENDENCE_SPEC` · **`V_SCORING_ASOF`** |
 | SERVING | `V_WINDOW` · `MET_AVAILABILITY_CONTRACTUAL` · **`MET_AVAILABILITY_TECHNICAL`** · `MET_LD_EXPOSURE` (run-rate) · **`MET_TURBINE_OEE`** (A × P, Quality NULL) · **`MET_LOST_ENERGY`** · **`MET_NOISE`** · `FN_AVAILABILITY_PCT`, `FN_GUARANTEE_PCT`, `FN_LD_RUN_RATE_INR`, `FN_INTERVAL_KWH` (the arithmetic the fixtures test) · `SP_BUILD_TURBINE_DAY` · **`SV_WIND_OPS`** (8 tables, 7 relationships) |
 | CURATED | **`AGG_TURBINE_DAY`** (18,400 turbine-days from the 10-minute signals). First object in `CURATED` |
 | DOCS | `MAINTENANCE_DOCS` stage (SSE, **11 PDFs**) · `DOC_PARSED` (11) · `DOC_CHUNK` (**53 section chunks**) · `DOC_PART_PROCEDURE` (13 parts → procedure) · `SP_PARSE_DOCUMENTS` · **`CSS_MAINTENANCE_DOCS`** (Cortex Search) |
 | GEN | **`WOA_OPS_AGENT`** — Cortex Agent, `claude-sonnet-4-5`, two read-only tools (`fleet_data` → `SV_WIND_OPS`, `maintenance_docs` → `CSS_MAINTENANCE_DOCS`) |
-| ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` |
-| ACTION | `AUD_ACTION` (append-only audit, refusals included) · `ACT_SUPPRESSION` · `ACT_WORK_ORDER_DRAFT` · `ACT_WORK_ORDER` · `ACT_DECISION` · `ACT_V_SUPPRESSION_ACTIVE` · five owner's-rights procedures (`SP_APPROVE_SUPPRESSION`, `SP_REVOKE_SUPPRESSION` → `WOA_RMC`; `SP_DRAFT_WORK_ORDER`, `SP_APPROVE_WORK_ORDER`, `SP_REJECT_WORK_ORDER_DRAFT` → `WOA_PLANNER`). Self-test rows are marked `IS_SELFTEST` and hidden by the app |
-| OPS | `DQ_ASSERTION` (**58**) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · six `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` · `OPS_TEST_HOOK` (`FAIL_AUDIT`, **off**; asserted) |
+| ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` · **`ENG_WINDOW_CANDIDATE`** (1,008 windows, 174 feasible, six constraint columns each) · **`ENG_SUGGESTION`** / **`ENG_SUGGESTION_ITEM`** (1 bundle, 3 single jobs, 1 infeasible) · `ENG_PLAN_IMPACT` · `SP_BUILD_WINDOW_CANDIDATES`, `SP_BUILD_SUGGESTIONS` |
+| ACTION | `AUD_ACTION` (append-only audit, refusals included) · `ACT_SUPPRESSION` · `ACT_WORK_ORDER_DRAFT` · `ACT_WORK_ORDER` · `ACT_DECISION` · `ACT_V_SUPPRESSION_ACTIVE` · five owner's-rights procedures (`SP_APPROVE_SUPPRESSION`, `SP_REVOKE_SUPPRESSION` → `WOA_RMC`; `SP_DRAFT_WORK_ORDER`, `SP_APPROVE_WORK_ORDER`, `SP_REJECT_WORK_ORDER_DRAFT` → `WOA_PLANNER`). Self-test rows are marked `IS_SELFTEST` and hidden by the app · **`SP_ACCEPT_SUGGESTION`**, **`SP_REJECT_SUGGESTION`** (`WOA_PLANNER`); drafts gain `window_id`, `window_start`, `window_end`, `suggestion_id` |
+| OPS | `DQ_ASSERTION` (**65**) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · seven `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` · `OPS_TEST_HOOK` (`FAIL_AUDIT`, **off**; asserted) |
 | APP | **`WOA_COMMAND_CENTER`** — Streamlit, **warehouse runtime** `SYSTEM$WAREHOUSE_RUNTIME`, Streamlit 1.52.2 from the Anaconda channel, warehouse `WOA_APP_WH`, source on `APP.WOA_APP_STAGE`. 5 tabs; writes via the ACTION procedures only |
 | **Not yet built** | window engine (`ENG_WINDOW_CANDIDATE`) · verified queries · dynamic tables · notification integration · scheduled task · the app's *Ask* tab |
 | Proven possible here | `CREATE SEMANTIC VIEW` · `CREATE CORTEX SEARCH SERVICE` · `CREATE AGENT` + `DATA_AGENT_RUN` · `AI_PARSE_DOCUMENT` (LAYOUT, SSE stage) · `CREATE STREAMLIT` (warehouse runtime; container runtime creates but **cannot boot** without egress) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
@@ -115,15 +119,14 @@ recipe** — see [AGENTS.md · Deployment](AGENTS.md#deployment).
 
 | Source | Credits |
 | --- | --- |
-| CoCo token credits on `BGTCHIX` (`CORTEX_CODE_DESKTOP_USAGE_HISTORY`, cumulative, data through 05:40 UTC 2026-09-26) | **94.90** |
-| Warehouse on `BGTCHIX` (`WAREHOUSE_METERING_HISTORY`, cumulative) | **11.65** |
-| **Total on `BGTCHIX`** | **≈ 106.6** |
+| CoCo token credits on `BGTCHIX` (`CORTEX_CODE_DESKTOP_USAGE_HISTORY`, cumulative, data through 06:46 UTC 2026-09-26) | **102.50** |
+| Warehouse on `BGTCHIX` (`WAREHOUSE_METERING_HISTORY`, cumulative) | **12.78** |
+| **Total on `BGTCHIX`** | **≈ 115.3** |
 | *Also spent elsewhere, not on the $400:* `JKDRJBB-MW27072` ≈ 43.9 (SB, KR, JP sessions) · `EXKFAFL-NW77746` ≈ 0.6 (NK, personal) | |
 
-**≈ 106.6 credits — roughly $288** at the conversion used for earlier alerts (≈ 74 credits ≈ $200). With the
-three-hour `ACCOUNT_USAGE` lag, **treat the $300 alert as reached (NK told 2026-09-26)**; ≈ $110 remains.
-`just results` prints this table from source. The two `T-52` builds cost ≈ 3 warehouse credits together;
-reasoning still dominates. Always sum both sources. Alert NK at each $100.
+**≈ 115.3 credits — roughly $311** at the conversion used for earlier alerts (≈ 74 credits ≈ $200). **The $300
+alert is passed (NK told 2026-09-26); ≈ $89 remains; the $400 alert is next.** The window engine cost ≈ 8.7
+credits. `just results` prints this table from source. Always sum both sources. Alert NK at each $100.
 
 ## 7. Deviations from the plan
 
@@ -179,14 +182,18 @@ ADR or RAID reference, that is a defect.
 | **Performance is judged against the fleet median, not 100%.** The power curve is ideal (no conversion loss), so a healthy turbine reads ~96.5%; underperforming = more than 1.5 points below the median, and underperformance loss is measured from the median | `MET_TURBINE_OEE`, `MET_LOST_ENERGY` |
 | **`T-52` ran on a scratch database, not with account teardown.** `just teardown` drops the shared `WOA_*` roles and warehouses as well as the database, which would destroy the live demo on this one account. `just deploy` ran twice into `WIND_OPS_AI_DEV_T52`, then the new `just teardown-db` dropped only that database. Account-level teardown remains **unexercised** | evidence 10 §3; `teardown-db` recipe |
 | **Gate labels corrected.** The answer-quality assertions had been filed under `G3`; `T-48` is now `G4` and `T-37`/`T-42` are `G5`, so `G3` counts only the numbers | `sql/15_quality/05_g3_assertions.sql` |
+| **The window engine's inputs are synthetic and ours** (NK's choice: a generator step): a 12-week seasonal forecast, crew certifications and site coverage, two crane-team commitments, one open bearing order, and a repair plan (job days, mobilisation, gust limits of 10 m/s for cranes and 15 m/s up-tower). None are Vayuveda facts | `sql/10_generate/14_planning_context.sql` header |
+| **Parts are allocated in expected-loss order**, stock first, then open orders; a job beyond the supply waits for a fresh order's lead time. That is why MH-STR's main bearing is infeasible: the two TN-TVL bearings rank higher | `ENG_WINDOW_CANDIDATE`; `DQ-T72-BINDING` |
+| **Bundling is greedy, not optimal**: crane jobs at one site with one crane team, highest loss first, at the earliest day all fit back to back. A cheaper plan may exist; this one is feasible and explained | `sql/40_engine/04_suggestions.sql` header |
+| **Accepting a suggestion schedules existing drafts; it does not create them.** Each component needs a draft first, so accept reuses the draft's evidence and refusals instead of a second drafting path | `sql/50_action/04_planning_procedures.sql` header |
+| **`T-73` (free-text constraints) is not built**, and the incident confirm/dismiss/reinstate half of `T-74` is not built | NK's scope choice for this round |
 
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/10-numbers-and-clean-builds.md`](docs/06-coco/evidence/development/10-numbers-and-clean-builds.md)
-— the plan's real `G3`: hand-worked fixtures, Turbine OEE (A × P, declared), lost energy, and a seeded `GS-5`
-that Performance alone catches. Plus `T-47`, `T-86`, `T-87`, `T-94`, `just results`, and **`T-52`: `just deploy`
-twice into an empty database, then a database-only teardown.** Found on the way: the gate had been mislabelled,
-and the generator's power had no performance signal (`I-20`).
+[`docs/06-coco/evidence/development/11-window-engine.md`](docs/06-coco/evidence/development/11-window-engine.md)
+— the maintenance-window engine: 1,008 candidate windows with six constraint columns each, a TN-TVL crane
+campaign that saves one mobilisation, and an MH-STR bearing the engine refuses to schedule because the part lands
+after the horizon. `T-71` and `T-31` gating; accept/reject through the action service. `verify` is 65/65.
 
-Previous: [`development/09-approval-gated-writes.md`](docs/06-coco/evidence/development/09-approval-gated-writes.md).
-Next entry goes in `docs/06-coco/evidence/development/11-<slug>.md`.
+Previous: [`development/10-numbers-and-clean-builds.md`](docs/06-coco/evidence/development/10-numbers-and-clean-builds.md).
+Next entry goes in `docs/06-coco/evidence/development/12-<slug>.md`.

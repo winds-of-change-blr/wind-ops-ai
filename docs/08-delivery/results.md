@@ -1,6 +1,6 @@
 # Results — generated, do not edit
 
-> **Generated** 2026-09-26 05:46 UTC by `just results` from `WIND_OPS_AI_DEV_NK` on `UZ86048` (AZURE_CENTRALINDIA).
+> **Generated** 2026-09-26 06:53 UTC by `just results` from `WIND_OPS_AI_DEV_NK` on `UZ86048` (AZURE_CENTRALINDIA).
 > Every figure is read from Snowflake at generation time; the right-hand column names its source.
 > **All data is synthetic** — the data is synthetic; the system is not.
 
@@ -12,14 +12,14 @@ On held-out data the risk model flagged **17 of 17** seeded component failures, 
 
 | Gate | Assertions passing | Gating passing | Last run |
 | --- | --- | --- | --- |
-| G1 | 16 / 16 | 2 / 2 | 2026-09-25 21:44 |
-| G2 | 13 / 13 | 2 / 2 | 2026-09-25 21:44 |
-| G3 | 7 / 7 | 6 / 6 | 2026-09-25 21:44 |
-| G4 | 16 / 16 | 9 / 9 | 2026-09-25 21:46 |
-| G5 | 6 / 6 | 1 / 1 | 2026-09-25 21:44 |
-| **All** | **58 / 58** | | |
+| G1 | 16 / 16 | 2 / 2 | 2026-09-25 23:49 |
+| G2 | 13 / 13 | 2 / 2 | 2026-09-25 23:50 |
+| G3 | 7 / 7 | 6 / 6 | 2026-09-25 23:50 |
+| G4 | 23 / 23 | 12 / 12 | 2026-09-25 23:52 |
+| G5 | 6 / 6 | 1 / 1 | 2026-09-25 23:50 |
+| **All** | **65 / 65** | | |
 
-Gating tests passing: `T-10`, `T-11`, `T-16`, `T-20`, `T-21`, `T-22`, `T-23`, `T-24`, `T-25`, `T-29`, `T-33`, `T-35`, `T-48`, `T-60`, `T-76`, `T-8`, `T-86`.
+Gating tests passing: `T-10`, `T-11`, `T-16`, `T-20`, `T-21`, `T-22`, `T-23`, `T-24`, `T-25`, `T-29`, `T-31`, `T-33`, `T-35`, `T-48`, `T-60`, `T-71`, `T-76`, `T-8`, `T-86`.
 Failing: **none**.
 
 Plus the behavioural role checks `just verify` runs outside SQL: direct writes to `ACTION` as
@@ -64,8 +64,8 @@ Plus the behavioural role checks `just verify` runs outside SQL: direct writes t
 
 | Source | Credits |
 | --- | --- |
-| CoCo token credits | 97.22 |
-| Warehouse credits | 11.72 |
-| **Total on this account** | **108.94** |
+| CoCo token credits | 102.50 |
+| Warehouse credits | 12.78 |
+| **Total on this account** | **115.28** |
 
-`ACCOUNT_USAGE` data through 2026-09-26 05:45:18.136000+00:00; it lags up to three hours.
+`ACCOUNT_USAGE` data through 2026-09-26 06:46:01.214000+00:00; it lags up to three hours.
