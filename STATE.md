@@ -1,8 +1,9 @@
 # Current state — read this first, update it last
 
 > **Last updated:** 2026-09-26 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
-> **Plan day:** D9 · **Working account: `BGTCHIX-UZ86048`** (moved here 2026-09-26, per NK) · **Branch:** `feat/nk/app-and-serving`
+> **Plan day:** D9 · **Working account: `BGTCHIX-UZ86048`** (moved here 2026-09-26, per NK) · **Branch:** `feat/nk/semantic-view-and-agent`
 > **The app exists:** `WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER` — https://app.snowflake.com/BGTCHIX/uz86048/#/streamlit-apps/WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER
+> **The agent exists:** `WIND_OPS_AI_DEV_NK.GEN.WOA_OPS_AGENT` — Snowsight › AI & ML › Agents
 
 **This file holds status, never intent.** Intent lives in `docs/`. If the two disagree: `docs/` wins on
 *what we are building*, this file wins on *how far we got*. Overwrite sections in place — never append.
@@ -16,12 +17,12 @@ Full protocol in [`AGENTS.md`](AGENTS.md#session-protocol).
 | --- | --- | --- |
 | **G1** — data is honest (D4) | **PASSED** — 16 assertions on `BGTCHIX` | — |
 | **G2** — the model is real (D9) | **PASSED** — 10 assertions: `T-10` **1.76×**, `T-18` ρ **0.243**, and `I-13` fixed so the published surface varies (6 HIGH) | `T-94` UI-reconciliation assertion not yet written |
-| **G3** — answers are trustworthy (D9) | **Not started** — semantic view, verified queries, agent. **Now the critical path** | — |
+| **G3** — answers are trustworthy (D9) | **PASSED (checkable half)** — 5 assertions incl. **`T-48` (gating): the live agent has 2 tools, both read-only**; `T-37` sections resolvable; `T-42` descriptions + sample values. Answer quality (`T-39`/`T-40` citations, a refusal probe) demonstrated in evidence 08 | verified queries (none written — none of the plan's `VQ-*` have checked SQL yet); `T-43`…`T-47` not automated |
 | **G4** — actions are safe (D12) | **Partly** — `T-60` (gating) **passes at 0 suppressed**; `T-70` passes. Approval-gated writes + audit (`M10`, `T-71`, `T-76`) not built | — |
 | **G5** — demo-ready (D15) | **Started** — app live with 4 tabs; `T-96`/`T-97` demonstrated via `AppTest` | walkthrough, README, deck |
 
-`just verify` runs **three** suites — **16 data + 10 ML + 5 engine = 31 assertions** — and exits non-zero on any failure.
-Gating tests run and passing: `T-8`, `T-10`, `T-11`, `T-16`, **`T-60`**.
+`just verify` runs **four** suites — **16 data + 10 ML + 5 engine + 5 G3 = 36 assertions** — and exits non-zero on any failure.
+Gating tests run and passing: `T-8`, `T-10`, `T-11`, `T-16`, **`T-60`**, **`T-48`**.
 
 ## 2. In flight — claim before you start
 
@@ -31,21 +32,22 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| NK | `G3`: semantic view `SV_WIND_OPS`, verified queries, Cortex Search `CSS_MAINTENANCE_DOCS`, the agent (`US-27`…`US-32`, `T-29`, `T-33`…`T-35`) | `feat/nk/semantic-view-and-agent` | 2026-09-26 | `feat/nk/app-and-serving` merged as PR #8 |
+| NK | `G3`: semantic view, documents, Cortex Search, agent (`US-27`…`US-32`, `T-37`, `T-42`, `T-48`) — **done, in review** | `feat/nk/semantic-view-and-agent` | 2026-09-26 | Clear this row when the PR merges |
 
 ## 3. Next actions, in order
 
 Do not re-derive the plan here — just the next things, each with the ID that proves it done. **These three
 are independent and should run in parallel across the team.**
 
-1. **`G3` — semantic view + verified queries + agent** (`US-27`…`US-32`, `T-29`, `T-33`…`T-35`). The one gate
-   not started, and due today. `CREATE SEMANTIC VIEW` and `CREATE AGENT` still unproven on this account.
-2. **`M10` — approval-gated writes and the audit trail** (`T-71`, `T-76`). The app's *Suppress* button already
-   runs the guards read-only; it needs a real approval path behind it.
-3. **Submission surface** — judge-facing README, 2-minute walkthrough, deck (`M13`). The app now exists to
-   record against.
+1. **`M10` — approval-gated writes and the audit trail** (`T-29`, `T-33`…`T-35`, `T-71`, `T-76`). Now the
+   critical path: `G4` is the only gate with its core unbuilt. The app's *Suppress* button already runs the
+   guards read-only; it needs a real approval path behind it.
+2. **Put the agent in the app** — an *Ask* tab calling `GEN.WOA_OPS_AGENT`, showing citations. The agent
+   works from SQL (`DATA_AGENT_RUN`); the app does not call it yet.
+3. **Submission surface** — judge-facing README, 2-minute walkthrough, deck (`M13`).
 
-Then: curated layer + one dynamic table (`M12`); metric fixtures `T-20`…`T-22`; widen detector coverage to
+Then: verified queries for `VQ-1`, `VQ-4`, `VQ-5` (SQL checked against the engine, as evidence 08 did by
+hand); curated layer + one dynamic table (`M12`); metric fixtures `T-20`…`T-22`; widen detector coverage to
 bring the 61.6% undetermined rate down honestly (`I-15`).
 
 ## 4. Blocked / needs a human decision
@@ -88,14 +90,16 @@ action*; the RAID log holds the rest.
 | Roles / warehouses | 9 `WOA_*` roles with hierarchy and grants · `WOA_APP_WH`, `WOA_BUILD_WH` (XSMALL, 60 s suspend) |
 | RAW | 14 dimensions seeded · `FCT_SIGNAL_10MIN` ~108.3M · `FCT_CMS_FEATURE` ~3.5M · `FCT_ALARM_NORMALISED` **340,431** · `FCT_TURBINE_STATE` · `FCT_WORK_ORDER` · 58 seeded failures |
 | ML | `RISK_CLASSIFIER` · `ANOMALY_DETECTOR` · `FEAT_COMPONENT_DAILY` · `SCORE_COMPONENT_RISK` (**400, as of 2026-08-26, 6 HIGH**) · `DRIVER_COMPONENT_RISK` · `SCORE_COMPONENT_ANOMALY` (48,813) · `ML_BASELINE_SPEC` · `ML_INDEPENDENCE_SPEC` · **`V_SCORING_ASOF`** |
-| SERVING | `V_WINDOW` · `MET_AVAILABILITY_CONTRACTUAL` · `MET_LD_EXPOSURE` (run-rate) |
+| SERVING | `V_WINDOW` · `MET_AVAILABILITY_CONTRACTUAL` · `MET_LD_EXPOSURE` (run-rate) · **`SV_WIND_OPS`** (semantic view: 6 tables, 5 relationships, 51 described fields) |
+| DOCS | `MAINTENANCE_DOCS` stage (SSE, 9 PDFs) · `DOC_PARSED` (9) · `DOC_CHUNK` (**43 section chunks**) · `SP_PARSE_DOCUMENTS` · **`CSS_MAINTENANCE_DOCS`** (Cortex Search) |
+| GEN | **`WOA_OPS_AGENT`** — Cortex Agent, `claude-sonnet-4-5`, two read-only tools (`fleet_data` → `SV_WIND_OPS`, `maintenance_docs` → `CSS_MAINTENANCE_DOCS`) |
 | ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` |
-| OPS | `DQ_ASSERTION` (31) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · three `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` |
+| OPS | `DQ_ASSERTION` (36) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · four `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` |
 | APP | **`WOA_COMMAND_CENTER`** — Streamlit, **warehouse runtime** `SYSTEM$WAREHOUSE_RUNTIME`, Streamlit 1.52.2 from the Anaconda channel, warehouse `WOA_APP_WH`, source on `APP.WOA_APP_STAGE` |
-| **Not yet built** | semantic view · Cortex Search service · agent · dynamic tables · approval procedures · audit table · notification integration |
-| Proven possible here | `CREATE STREAMLIT` (warehouse runtime; container runtime creates but **cannot boot** without egress) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
+| **Not yet built** | verified queries · dynamic tables · approval procedures · audit table · notification integration · the app's *Ask* tab |
+| Proven possible here | `CREATE SEMANTIC VIEW` · `CREATE CORTEX SEARCH SERVICE` · `CREATE AGENT` + `DATA_AGENT_RUN` · `AI_PARSE_DOCUMENT` (LAYOUT, SSE stage) · `CREATE STREAMLIT` (warehouse runtime; container runtime creates but **cannot boot** without egress) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
 | Proven NOT possible | `CREATE APPLICATION SERVICE` (trial account, `ADR-0020`) · **`CREATE EXTERNAL ACCESS INTEGRATION`** (trial account) — so no PyPI, no MCP egress, no outbound calls from the app · `!SHOW_FEATURE_IMPORTANCE()` on the classifier (`I-8`) · legacy model names `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` |
-| Still unproven | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE AGENT`, `CREATE DYNAMIC TABLE` — all **verified during planning on this same account**, not re-probed since |
+| Still unproven | `CREATE DYNAMIC TABLE` — verified during planning on this same account, not re-probed since |
 
 Naming authority: [`04-code.md`](docs/03-architecture/04-code.md). **Every object here was created by a `just`
 recipe** — see [AGENTS.md · Deployment](AGENTS.md#deployment).
@@ -151,13 +155,19 @@ ADR or RAID reference, that is a defect.
 
 | **The app runs on the WAREHOUSE runtime, set explicitly — not the container runtime.** The container runtime installs every package from `pypi.org` at boot, and this trial account **cannot have external access**. Proven three ways: no `pyproject.toml` (runtime refuses to start), an empty one (*Streamlit library not found*), a real one (*DNS failure reaching pypi.org*). The warehouse runtime installs `environment.yml` from Snowflake's own Anaconda channel (Streamlit 1.52.2). `snow streamlit deploy` kept choosing the container runtime even on a clean recreate — Snowflake is moving new apps to default to it — so `deploy-app` now creates the app in SQL with `RUNTIME_NAME = 'SYSTEM$WAREHOUSE_RUNTIME'` and **asserts the runtime** after every deploy | `sql/80_app/`; `I-17` |
 
+| **The semantic view and the agent are hand-written DDL**, not generated by the `agent-studio` skill. Its generator and its agent tooling need the Cortex CLI, which is not installed here; NK chose DDL through `just`. Every description was checked against the data (`DQ-SV-DESCRIBED`, `DQ-SV-SAMPLES-REAL`) | `sql/30_serve/02_semantic_view.sql`, `sql/70_agent/01_agent.sql` headers; evidence 08 §3 |
+| **Documents are chunked by SECTION, not by the `search-optimization` skill's fixed 500-character pipeline**, which would cut sections in half and lose the headings a citation needs (`T-37`) | `sql/60_docs/02_search_service.sql` header |
+| **Parser headings are normalised.** `AI_PARSE_DOCUMENT` LAYOUT marked headings with `##` in 6 of 9 identically styled PDFs and as plain text in 3. `SP_PARSE_DOCUMENTS` promotes the known heading shape; a no-op where the parser was right. Found by `DQ-DOC-SECTIONS` | `sql/60_docs/01_documents.sql`; evidence 08 §5 |
+| **No verified queries yet.** The plan has ten `VQ-*` questions but no checked SQL for any; writing SQL for them unchecked would teach Analyst an unverified answer. Two were checked by hand against the engine in evidence 08 and are the first candidates | §3 above |
+| **The documents are regenerated, not committed.** `data/maintenance_docs/` is git-ignored; `just deploy-agent` rebuilds the PDFs from `scripts/generate_maintenance_docs.py` | `.gitignore` |
+
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/07-app-and-prerequisites.md`](docs/06-coco/evidence/development/07-app-and-prerequisites.md)
-— the whole stack on `BGTCHIX`, the serving and alarm layers, and the app, executed headless with 0
-exceptions. **`T-60` caught the first alarm classifier hiding 9 real failures**; fixed from ADR-0017's
-text, not by tuning.
+[`docs/06-coco/evidence/development/08-semantic-view-docs-and-agent.md`](docs/06-coco/evidence/development/08-semantic-view-docs-and-agent.md)
+— `G3`: the semantic view, 9 maintenance PDFs parsed into 43 section chunks, Cortex Search, and a read-only
+agent. **`DQ-DOC-SECTIONS` caught the parser dropping headings from 3 documents.** The agent refused a
+suppression request and cited the policy that forbids it.
 
-Previous: [`development/06-anomaly-detector.md`](docs/06-coco/evidence/development/06-anomaly-detector.md).
+Previous: [`development/07-app-and-prerequisites.md`](docs/06-coco/evidence/development/07-app-and-prerequisites.md).
 
-Next entry goes in `docs/06-coco/evidence/development/08-<slug>.md`.
+Next entry goes in `docs/06-coco/evidence/development/09-<slug>.md`.
