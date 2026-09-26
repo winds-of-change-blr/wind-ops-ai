@@ -164,7 +164,7 @@ correlation with identity.
 | `T-14` | A risk score exists for every active in-scope component, with a horizon | ✅ |
 | `T-15` | Training runs, evaluates on held-out data, and writes metrics to `OPS` | ✅ |
 | `T-17` | Lead time computed per seeded failure and summarised as a distribution | ✅ |
-| `T-18` | Classifier and anomaly detector are **not collinear** — correlation below a stated bound | ✅ |
+| `T-18` | Classifier and anomaly detector are **not collinear** — **\|Spearman ρ\| ≤ 0.50**, pre-registered in `ML.ML_INDEPENDENCE_SPEC` before measurement, with a null ρ counting as failure and both signals required to vary. Measured **0.222** over 48,801 component-days. See [`ml-models.md` §2.1](../05-ai-ml/ml-models.md#21-the-t-18-bound-and-what-it-is-measured-on) | ✅ |
 | `T-19` | Same inputs and model version produce the same score | ✅ |
 
 ## 5. Metrics — `T-20` to `T-25`
