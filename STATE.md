@@ -31,7 +31,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Nobody mid-flight. `feat/nk/app-and-serving` is in review |
+| NK | `G3`: semantic view `SV_WIND_OPS`, verified queries, Cortex Search `CSS_MAINTENANCE_DOCS`, the agent (`US-27`…`US-32`, `T-29`, `T-33`…`T-35`) | `feat/nk/semantic-view-and-agent` | 2026-09-26 | `feat/nk/app-and-serving` merged as PR #8 |
 
 ## 3. Next actions, in order
 
