@@ -94,7 +94,7 @@ action*; the RAID log holds the rest.
 | APP | **`WOA_COMMAND_CENTER`** — Streamlit, container runtime `SYSTEM$ST_CONTAINER_RUNTIME_PY3_11`, pool `SYSTEM_COMPUTE_POOL_CPU`, warehouse `WOA_APP_WH` |
 | **Not yet built** | semantic view · Cortex Search service · agent · dynamic tables · approval procedures · audit table · notification integration |
 | Proven possible here | `CREATE STREAMLIT` (container runtime) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
-| Proven NOT possible | `CREATE APPLICATION SERVICE` (trial account, `ADR-0020`) · `!SHOW_FEATURE_IMPORTANCE()` on the classifier (`I-8`) · legacy model names `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` |
+| Proven NOT possible | `CREATE APPLICATION SERVICE` (trial account, `ADR-0020`) · **`CREATE EXTERNAL ACCESS INTEGRATION`** (trial account) — so no PyPI, no MCP egress, no outbound calls from the app · `!SHOW_FEATURE_IMPORTANCE()` on the classifier (`I-8`) · legacy model names `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` |
 | Still unproven | `CREATE SEMANTIC VIEW`, `CREATE CORTEX SEARCH SERVICE`, `CREATE AGENT`, `CREATE DYNAMIC TABLE` — all **verified during planning on this same account**, not re-probed since |
 
 Naming authority: [`04-code.md`](docs/03-architecture/04-code.md). **Every object here was created by a `just`
@@ -149,6 +149,8 @@ ADR or RAID reference, that is a defect.
 | **`30_serve/` and `40_engine/` exist but hold first cuts.** Availability and LD exposure have no hand-worked fixtures yet (`T-20`…`T-22`); the alarm engine has no approval path | This row |
 | **The *Suppress* button is read-only.** It runs every guard and shows the refusal, but writes nothing — approval-gated writes (`M10`) are not built, and the UI says so | `app/streamlit_app.py` |
 | **Incident window is 24 h, and nuisance requires the component to be monitored and the code not to recur within 14 days** — two conditions ADR-0017 states and the first cut omitted. The first cut hid 9 real failures | `sql/40_engine/01_alarm_incidents.sql` header; evidence 07 §5 |
+
+| **The app deploys an EMPTY `pyproject.toml`.** The container runtime refuses to start without one (*"Installing dependencies failed because the pyproject.toml file does not exist"*), and this trial account **cannot have an external access integration** (*"External access is not supported for trial accounts"*), so nothing can be fetched from PyPI. The app is limited to pre-installed packages for the rest of the hackathon. The earlier `--prune` fix deleted a runtime-seeded `pyproject.toml` and broke the app | `app/pyproject.toml`; `I-17` |
 
 ## 8. Latest evidence entry
 

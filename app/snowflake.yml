@@ -5,9 +5,11 @@ definition_version: 2
 # same manifest deploys into any clone (NFR-6). `just deploy-app` exports
 # WOA_DATABASE from the resolved target before calling `snow streamlit deploy`.
 #
-# No pyproject.toml is deployed on purpose: the app uses only packages the
-# container runtime pre-installs (streamlit, pandas, altair). A dependency file
-# would force PyPI resolution and require an external access integration.
+# The container runtime REQUIRES a pyproject.toml ("Installing dependencies
+# failed because the pyproject.toml file does not exist"), and this trial
+# account cannot have an external access integration ("External access is not
+# supported for trial accounts"). So pyproject.toml is deployed with an EMPTY
+# dependency list: the runtime gets its file, and there is nothing to fetch.
 entities:
   woa_command_center:
     type: streamlit
@@ -22,3 +24,4 @@ entities:
     main_file: streamlit_app.py
     artifacts:
       - streamlit_app.py
+      - pyproject.toml
