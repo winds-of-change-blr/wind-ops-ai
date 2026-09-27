@@ -345,6 +345,8 @@ deploy-app: _resolve-db
     for f in app/streamlit_app.py app/environment.yml; do
         snow stage copy "$f" "@{{database}}.APP.WOA_APP_STAGE" --overwrite
     done
+    # The theme must sit at .streamlit/config.toml beside the main file.
+    snow stage copy app/.streamlit/config.toml "@{{database}}.APP.WOA_APP_STAGE/.streamlit/" --overwrite
     {{snow_sql}} -f "{{sql_dir}}/80_app/02_create_streamlit.sql" -D "database={{database}}"
     printf '\n=== verify runtime and existence (a clean exit is not proof) ===\n'
     snow sql -q "describe streamlit {{database}}.APP.WOA_COMMAND_CENTER" --format json \

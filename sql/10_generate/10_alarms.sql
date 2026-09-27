@@ -177,7 +177,14 @@ begin
             end as code
         from crossing c
     ) x
-    where x.code is not null;
+    where x.code is not null
+    -- GEN-DE and GEN-NDE both map to CM-VB-004, so without this a day on which
+    -- both generator bearings cross emits the SAME alarm_id twice. That broke
+    -- incident ids downstream (two incidents, one id: T-68 WELLFORMED caught
+    -- it on a fresh JKDRJBB build, 2026-09-27). One alarm per component / code /
+    -- day, as the header says: the earliest crossing, the higher peak.
+    qualify row_number() over (partition by x.component_id, x.day, x.code
+                               order by x.first_ts, x.peak desc, x.monitored_point) = 1;
 
     n_cms := sqlrowcount;
 

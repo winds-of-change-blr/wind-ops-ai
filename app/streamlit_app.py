@@ -134,185 +134,387 @@ def inr(x) -> str:
     return f"₹{x:,.0f}"
 
 
-# --------------------------------------------------------------------------- header
+# --------------------------------------------------------------------------- frame
 asof = _run(f"select as_of_date, data_end_date, horizon_days from {q('ML.V_SCORING_ASOF')}")
 as_of = asof.iloc[0]["as_of_date"] if not asof.empty else None
-
-st.title("Wind Ops AI — Command Center")
-st.caption(
-    "Vayuveda Wind Systems · 100 turbines · 6 sites. "
-    "**Synthetic data only** — the data is synthetic; the system is not."
+funnel = _run(f"select * from {q('ENGINE.ENG_ALARM_FUNNEL')}")
+fleet = _run(
+    f"""select count(*) as turbines, count(distinct site_code) as sites
+        from {q("SERVING.MET_AVAILABILITY_CONTRACTUAL")}"""
 )
-if as_of is not None:
-    st.info(
-        f"Risk is scored **as of {as_of}** — {int(asof.iloc[0]['horizon_days'])} days before the "
-        f"data ends ({asof.iloc[0]['data_end_date']}). A "
-        f"{int(asof.iloc[0]['horizon_days'])}-day-ahead "
-        "prediction can only be checked if that much future exists (I-13).",
-        icon=":material/event:",
-    )
+site_list = _run(f"select distinct site_code from {q('ENGINE.ENG_INCIDENT')} order by site_code")[
+    "site_code"
+].tolist()
+SEVERITIES = ["TRIP", "ALARM", "WARNING"]
 
+
+def _reset_filters() -> None:
+    st.session_state["f_sites"] = site_list
+    st.session_state["f_sev"] = SEVERITIES
+    st.session_state["q_search"] = ""
+
+
+with st.sidebar:
+    st.markdown("**:material/air: Wind Ops AI**  \nVayuveda Wind Systems")
+    st.caption("Scoring window")
+    with st.container(border=True):
+        if as_of is not None:
+            w1, w2 = st.columns(2)
+            w1.metric("Risk scored as of", str(as_of))
+            w2.metric("Data ends", str(asof.iloc[0]["data_end_date"]))
+            st.caption(
+                f"**{int(asof.iloc[0]['horizon_days'])} days ahead.** A prediction can only "
+                "be checked if that much future exists (I-13)."
+            )
+        else:
+            st.caption("No scoring run yet.")
+    fh1, fh2 = st.columns([3, 1], vertical_alignment="bottom")
+    fh1.caption("Filters")
+    fh2.button("Reset", on_click=_reset_filters, type="tertiary")
+    sel_sites = st.pills(
+        "Sites", site_list, selection_mode="multi", default=site_list, key="f_sites"
+    )
+    sel_sev = st.pills(
+        "Severity", SEVERITIES, selection_mode="multi", default=SEVERITIES, key="f_sev"
+    )
+    st.divider()
+    if not fleet.empty:
+        st.caption(
+            f"**Fleet** · {int(fleet.iloc[0]['turbines'])} turbines · "
+            f"{int(fleet.iloc[0]['sites'])} sites"
+        )
+    st.caption("**Data** · synthetic — the system is not")
+
+sel_sites = sel_sites or []
+sel_sev = sel_sev or []
+sites_json = json.dumps(sel_sites)
+sev_json = json.dumps(sel_sev)
+filtered_note = (
+    ""
+    if set(sel_sites) == set(site_list)
+    else f"Filtered to {len(sel_sites)} of {len(site_list)} sites."
+)
+
+st.title("Command Center")
+h1, h2 = st.columns([3, 2], vertical_alignment="center")
+h1.caption("Alarm triage, failure risk and model evidence for the Vayuveda fleet")
+with h2.container(horizontal=True, horizontal_alignment="right"):
+    st.badge("Synthetic data", icon=":material/science:", color="violet")
+    if as_of is not None:
+        st.badge(
+            f"Scored as of {as_of} · data ends {asof.iloc[0]['data_end_date']}",
+            icon=":material/event:",
+            color="gray",
+        )
+
+actionable_badge = f" · {int(funnel.iloc[0]['actionable']):,}" if not funnel.empty else ""
 t_alarms, t_triage, t_model, t_fleet, t_audit = st.tabs(
     [
-        ":material/notifications: Alarms",
-        ":material/priority_high: Risk triage",
+        f":material/notifications: Alarms{actionable_badge}",
+        ":material/warning: Risk triage",
         ":material/science: Is the model real?",
         ":material/wind_power: Fleet & contracts",
         ":material/history: Audit",
     ]
 )
 
+VERDICT = {
+    "SUPPORTS_ACTIONABLE": "Actionable",
+    "SUPPORTS_NUISANCE": "Nuisance",
+    "NO_EVIDENCE": "No evidence",
+}
+FILTER_SQL = """site_code in (select value::varchar from table(flatten(parse_json(?))))
+               and severity in (select value::varchar from table(flatten(parse_json(?))))
+               and (? = '' or turbine_id ilike ? or alarm_code ilike ? or alarm_name ilike ?
+                    or coalesce(component_id, '') ilike ?)"""
+
 # --------------------------------------------------------------------------- alarms
 with t_alarms:
-    f = _run(f"select * from {q('ENGINE.ENG_ALARM_FUNNEL')}")
-    if f.empty:
+    if funnel.empty:
         st.warning("The alarm engine has not been built. Run `just deploy-engine`.")
     else:
-        r = f.iloc[0]
+        r = funnel.iloc[0]
+        queued = int(r.actionable) + int(r.undetermined)
         st.subheader("A flood of alarms becomes a short, honest list")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Raw alarms", f"{int(r.raw_alarms):,}")
-        c2.metric("Incidents", f"{int(r.incidents):,}")
-        c3.metric("Actionable", f"{int(r.actionable):,}")
-        c4.metric(
-            "Undetermined",
-            f"{int(r.undetermined):,}",
-            help="Unresolved, not resolved-as-noise. Never hidden, never suppressible (ADR-0017).",
-        )
-        # The anti-gaming rule: compression and failures-suppressed, together.
-        c5.metric(
-            "Compression · real failures suppressed",
-            f"{r.compression_ratio}:1 · {int(r.real_failures_suppressed)}",
-            help="Compression is trivially achieved by suppressing everything, "
-            "so it is never shown alone (T-70).",
-        )
-
-        stages = pd.DataFrame(
-            {
-                "stage": [
-                    "1 · Raw alarms",
-                    "2 · Incidents",
-                    "3 · Actionable + undetermined",
-                    "4 · Actionable",
-                ],
-                "count": [
-                    int(r.raw_alarms),
-                    int(r.incidents),
-                    int(r.actionable) + int(r.undetermined),
-                    int(r.actionable),
-                ],
-            }
-        )
-        st.altair_chart(
-            alt.Chart(stages)
-            .mark_bar()
-            .encode(
-                x=alt.X("count:Q", scale=alt.Scale(type="log"), title="count (log scale)"),
-                y=alt.Y("stage:N", sort=None, title=None),
-                tooltip=["stage", "count"],
+        st.caption("Whole scoring window · all sites (the funnel is not filtered)")
+        f1, f2, f3, f4 = st.columns(4)
+        with f1.container(border=True):
+            st.metric("1 · Raw alarms", f"{int(r.raw_alarms):,}")
+            st.caption("every code, every turbine")
+            st.progress(1.0)
+        with f2.container(border=True):
+            st.metric(
+                "2 · Incidents",
+                f"{int(r.incidents):,}",
+                f"{int(r.raw_alarms) / max(int(r.incidents), 1):.1f} : 1",
+                delta_color="off",
             )
-            .properties(height=190),
-            width="stretch",
+            st.caption("grouped by asset + code")
+            st.progress(min(1.0, int(r.incidents) / max(int(r.raw_alarms), 1) * 10))
+        with f3.container(border=True):
+            st.metric(
+                "3 · In queue",
+                f"{queued:,}",
+                f"−{int(r.nuisance):,}",
+                delta_color="off",
+            )
+            st.caption("engine-classed nuisance removed")
+            st.progress(min(1.0, queued / max(int(r.raw_alarms), 1) * 10))
+        with f4.container(border=True):
+            st.metric("4 · Actionable", f"{int(r.actionable):,}")
+            st.caption(f"+ {int(r.undetermined):,} undetermined, ranked below")
+            st.progress(min(1.0, int(r.actionable) / max(int(r.raw_alarms), 1) * 10))
+        # The anti-gaming rule: compression and failures-suppressed, together (T-70).
+        g1, g2, g3 = st.columns(3)
+        g1.metric(
+            "Compression",
+            f"{r.compression_ratio} : 1",
+            help="Raw alarms per queued incident. Trivially achieved by suppressing "
+            "everything, so it is never shown without the next number.",
+            border=True,
         )
-        st.caption(
-            f"Undetermined rate **{float(r.undetermined_rate):.1%}** — published, not buried. "
-            "A rising rate means the evidence base is degrading."
+        g2.metric(
+            "Real failures suppressed",
+            int(r.real_failures_suppressed),
+            help="The number that must stay zero.",
+            border=True,
+        )
+        g3.metric(
+            "Undetermined rate",
+            f"{float(r.undetermined_rate):.1%}",
+            help="Published, not buried — a rising rate means the evidence base is degrading.",
+            border=True,
         )
 
-        st.subheader("The queue")
-        # One queue, not a class filter (ADR-0017, T-61): every ACTIONABLE, then
-        # every UNDETERMINED, ranked by the engine. NUISANCE is shown separately,
-        # and a page never truncates without saying how much it left out.
-        view = st.segmented_control(
+        st.subheader("Incident queue")
+        st.caption("Select a row to see why it was classed and whether it can be suppressed.")
+        c_view, c_search = st.columns([1, 2], vertical_alignment="bottom")
+        view = c_view.segmented_control(
             "Show",
             ["Queue", "Nuisance"],
             default="Queue",
+            key="q_view",
+            label_visibility="collapsed",
         )
-        cols = """incident_id, incident_class, turbine_id, site_code, component_id, alarm_code,
-                  alarm_name, severity, is_safety_critical, incident_start, n_alarms,
-                  all_auto_reset, is_corroborated, is_elevated, noise_condition, class_reason"""
+        search = c_search.text_input(
+            "Search",
+            key="q_search",
+            placeholder="Turbine, alarm code, name or component",
+            label_visibility="collapsed",
+        )
+        like = f"%{(search or '').strip()}%"
+        fparams = [sites_json, sev_json, (search or "").strip(), like, like, like, like]
+        cols = """incident_id, incident_class, severity, alarm_name, alarm_code, turbine_id,
+                  site_code, component_id, incident_start, n_alarms, is_safety_critical,
+                  is_corroborated, is_elevated, all_auto_reset, class_reason"""
         if (view or "Queue") == "Queue":
             queue = _run(
-                f"""select queue_rank, {cols}, queue_total
+                f"""select queue_rank, {cols}, count(*) over () as n_match
                     from {q("ENGINE.ENG_OPERATOR_QUEUE")}
-                    order by queue_rank
-                    limit 200"""
+                    where {FILTER_SQL}
+                    order by queue_rank limit 200""",
+                params=fparams,
             )
-            total = int(queue["queue_total"].iloc[0]) if not queue.empty else 0
-            queue = queue.drop(columns=["queue_total"])
+            scope = f"of {queued:,} in the queue"
+            tail = "Undetermined ranks below actionable — never hidden, never suppressible."
         else:
             queue = _run(
-                f"""select {cols}, count(*) over () as queue_total
+                f"""select row_number() over (order by incident_start desc) as queue_rank,
+                           {cols}, count(*) over () as n_match
                     from {q("ENGINE.ENG_INCIDENT")}
-                    where incident_class = 'NUISANCE'
-                    order by incident_start desc
-                    limit 200"""
+                    where incident_class = 'NUISANCE' and {FILTER_SQL}
+                    order by incident_start desc limit 200""",
+                params=fparams,
             )
-            total = int(queue["queue_total"].iloc[0]) if not queue.empty else 0
-            queue = queue.drop(columns=["queue_total"])
+            scope = f"of {int(r.nuisance):,} engine-classed nuisance"
+            tail = "The only suppression candidates."
+        n_match = int(queue["n_match"].iloc[0]) if not queue.empty else 0
         st.caption(
-            f"Showing **{len(queue):,} of {total:,}**. Undetermined incidents stay in the queue, "
-            "ranked below actionable — never hidden, never suppressible."
+            f"Showing **{len(queue):,}** of {n_match:,} matching ({scope}). {tail} {filtered_note}"
         )
-        st.dataframe(queue, hide_index=True, width="stretch")
+        shown = queue.drop(columns=["n_match", "incident_id"], errors="ignore")
+        event = st.dataframe(
+            shown,
+            hide_index=True,
+            width="stretch",
+            height=360,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="q_table",
+            column_config={
+                "queue_rank": st.column_config.NumberColumn("#", width="small"),
+                "incident_class": st.column_config.TextColumn("Class"),
+                "severity": st.column_config.TextColumn("Severity"),
+                "alarm_name": st.column_config.TextColumn("Alarm"),
+                "alarm_code": st.column_config.TextColumn("Code"),
+                "turbine_id": st.column_config.TextColumn("Turbine"),
+                "site_code": None,
+                "component_id": st.column_config.TextColumn("Component"),
+                "incident_start": st.column_config.DatetimeColumn("Started", format="MM-DD HH:mm"),
+                "n_alarms": st.column_config.NumberColumn("Alarms"),
+                "is_safety_critical": st.column_config.CheckboxColumn("Safety"),
+                "is_corroborated": st.column_config.CheckboxColumn("Corrob."),
+                "is_elevated": st.column_config.CheckboxColumn("Elevated"),
+                "all_auto_reset": None,
+                "class_reason": st.column_config.TextColumn("Why this class", width="large"),
+            },
+        )
+        if queue.empty:
+            st.info("No incidents match these filters.", icon=":material/filter_alt_off:")
+        else:
+            rows = event.selection.rows if event and event.selection else []
+            d = queue.iloc[rows[0] if rows else 0]
+            iid = d["incident_id"]
+            risk = _run(
+                f"""select count_if(risk_band in ('HIGH', 'MEDIUM')) as n_risky,
+                           coalesce(max(iff(risk_band = 'HIGH', 'HIGH', null)),
+                                    max(iff(risk_band = 'MEDIUM', 'MEDIUM', null)), 'LOW') as band
+                    from {q("ENGINE.ENG_ALERT_RANKED")} where turbine_id = ?""",
+                params=[d["turbine_id"]],
+            ).iloc[0]
 
-        st.subheader("Why was it classed this way?")
-        why = st.selectbox(
-            "Incident", queue["incident_id"].tolist() if not queue.empty else [], key="why"
-        )
-        if why:
-            st.dataframe(
-                _run(
-                    f"""select channel, verdict, measured_value, reference_value, as_of_date, detail
+            left, right = st.columns([3, 2])
+            with left.container(border=True):
+                st.markdown(f"**Why was it classed this way?** — {d['alarm_name']}")
+                with st.container(horizontal=True):
+                    st.badge(
+                        d["incident_class"],
+                        color="violet" if d["incident_class"] == "ACTIONABLE" else "gray",
+                    )
+                    st.badge(d["severity"], color="gray")
+                    if bool(d["is_safety_critical"]):
+                        st.badge("Safety-critical", icon=":material/shield:", color="red")
+                    st.badge(
+                        f"Turbine risk {risk['band']}",
+                        color="orange" if risk["band"] != "LOW" else "gray",
+                    )
+                st.caption(
+                    f"{d['turbine_id']} · {d['component_id'] or 'no component'} · "
+                    f"{d['incident_start']} · {int(d['n_alarms'])} alarm(s) · `{iid}`"
+                )
+                st.markdown(f"**Rule applied** — {d['class_reason']}")
+                ev = _run(
+                    f"""select channel, verdict, measured_value, reference_value, detail
                         from {q("ENGINE.ENG_INCIDENT_EVIDENCE")}
                         where incident_id = ?
-                        order by case channel when 'CORROBORATION' then 1
-                                 when 'OPERATING_POINT' then 2 when 'RESET_RECURRENCE' then 3
-                                 else 4 end""",
-                    params=[why],
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-            st.caption("The four channels ADR-0017 weighs, stored so a human can disagree (T-68).")
-
-        st.subheader("Suppress an incident")
-        st.caption(
-            "Suppression is the one action that can hide a real failure, so the procedure "
-            "re-checks everything itself: never a safety-critical code, never an asset with "
-            "elevated evidence or MEDIUM/HIGH risk, only engine-classed NUISANCE, always "
-            "time-boxed, always audited, always reversible. Try any incident — refusals are "
-            "recorded too."
-        )
-        pick = st.selectbox("Incident", queue["incident_id"].tolist() if not queue.empty else [])
-        s1, s2 = st.columns([3, 1])
-        reason = s1.text_input("Reason (required)", placeholder="Why is this noise?")
-        hours = s2.number_input("Hours", min_value=1, max_value=168, value=24)
-        if pick and st.button("Request suppression", icon=":material/notifications_off:"):
-            _show(
-                _call(
-                    "ACTION.SP_APPROVE_SUPPRESSION",
-                    [pick, int(hours), reason, _key("suppress", pick), _viewer()],
+                        order by decode(channel, 'CORROBORATION', 1, 'OPERATING_POINT', 2,
+                                        'RESET_RECURRENCE', 3, 4)""",
+                    params=[iid],
                 )
-            )
+                if ev.empty:
+                    st.caption("No stored evidence rows for this incident.")
+                else:
+                    ev["verdict"] = ev["verdict"].map(VERDICT).fillna(ev["verdict"])
+                    tally = ev["verdict"].value_counts()
+                    st.markdown(
+                        "**Evidence channels** — "
+                        + " · ".join(
+                            f"{int(tally.get(k, 0))} {k.lower()}"
+                            for k in ("Actionable", "Nuisance", "No evidence")
+                        )
+                    )
+                    st.dataframe(
+                        ev,
+                        hide_index=True,
+                        width="stretch",
+                        column_config={
+                            "channel": "Channel",
+                            "verdict": "Verdict",
+                            "measured_value": st.column_config.NumberColumn("Measured"),
+                            "reference_value": st.column_config.NumberColumn("Reference"),
+                            "detail": st.column_config.TextColumn("Detail", width="large"),
+                        },
+                    )
+                    st.caption(
+                        "Measured against reference. The four channels ADR-0017 weighs, "
+                        "stored so a human can disagree (T-68)."
+                    )
+
+            with right.container(border=True):
+                st.markdown("**Suppress this incident**")
+                st.caption(
+                    "Suppression is the one action that can hide a real failure. The procedure "
+                    "re-checks every gate itself — time-boxed, audited, reversible. Refusals are "
+                    "recorded too."
+                )
+                # Display only: mirrors SP_APPROVE_SUPPRESSION's guards in its order.
+                # The procedure stays the authority and re-checks every one.
+                gates = [
+                    ("Not a safety-critical code", not bool(d["is_safety_critical"])),
+                    ("No elevated evidence on asset", not bool(d["is_elevated"])),
+                    ("No MEDIUM/HIGH risk on the turbine", int(risk["n_risky"]) == 0),
+                    ("Engine-classed NUISANCE", d["incident_class"] == "NUISANCE"),
+                ]
+                for label, ok in gates:
+                    st.markdown(
+                        f":material/{'check_circle' if ok else 'cancel'}: {label}"
+                        if ok
+                        else f":gray[:material/cancel: {label}]"
+                    )
+                failing = sum(1 for _, ok in gates if not ok)
+                if failing == 0:
+                    st.success(
+                        "Eligible — a request will be granted, time-boxed and audited.",
+                        icon=":material/lock_open:",
+                    )
+                else:
+                    st.warning(
+                        f"Not eligible — a request will be refused and recorded "
+                        f"({failing} gate{'s' if failing > 1 else ''} failing).",
+                        icon=":material/lock:",
+                    )
+                with st.form("suppress", border=False):
+                    reason = st.text_input(
+                        "Reason (required)", placeholder="Why is this noise? At least 10 characters"
+                    )
+                    hours = st.number_input("Hours", min_value=1, max_value=168, value=24)
+                    sent = st.form_submit_button(
+                        f"Request suppression for {d['turbine_id']} · {d['alarm_code']}",
+                        icon=":material/notifications_off:",
+                    )
+                if sent:
+                    st.session_state["n_requests"] = st.session_state.get("n_requests", 0) + 1
+                    _show(
+                        _call(
+                            "ACTION.SP_APPROVE_SUPPRESSION",
+                            [iid, int(hours), reason, _key("suppress", iid), _viewer()],
+                        )
+                    )
 
         active = _fresh(
             f"""select suppression_id, incident_id, turbine_id, alarm_code, reason,
                        approved_by, on_behalf_of, approved_at, expires_at
                 from {q("ACTION.ACT_V_SUPPRESSION_ACTIVE")} order by approved_at desc"""
         )
-        st.markdown(f"**Active suppressions — {len(active)}**")
-        if not active.empty:
-            st.dataframe(active, hide_index=True, width="stretch")
-            rv = st.selectbox("Revoke", active["suppression_id"].tolist())
-            rv_reason = st.text_input("Reason for revoking", key="rv_reason")
-            if st.button("Revoke suppression", icon=":material/undo:"):
-                _show(
-                    _call(
-                        "ACTION.SP_REVOKE_SUPPRESSION",
-                        [rv, rv_reason, _key("revoke", rv), _viewer()],
-                    )
+        with st.container(border=True):
+            st.markdown(
+                f"**Active suppressions · {len(active)}** — "
+                f"{st.session_state.get('n_requests', 0)} request(s) this session"
+            )
+            if active.empty:
+                st.caption(
+                    "None. Engine-classed nuisance incidents are the only eligible candidates — "
+                    "switch the queue to Nuisance to find one."
                 )
+            else:
+                for srow in active.itertuples():
+                    a1, a2 = st.columns([4, 1], vertical_alignment="center")
+                    a1.markdown(
+                        f"**{srow.turbine_id} · {srow.alarm_code}** — until {srow.expires_at} · "
+                        f"“{srow.reason}” · by {srow.on_behalf_of or srow.approved_by}"
+                    )
+                    if a2.button("Lift", key=f"lift_{srow.suppression_id}", icon=":material/undo:"):
+                        _show(
+                            _call(
+                                "ACTION.SP_REVOKE_SUPPRESSION",
+                                [
+                                    srow.suppression_id,
+                                    "Lifted from the command center by the operator",
+                                    _key("revoke", srow.suppression_id),
+                                    _viewer(),
+                                ],
+                            )
+                        )
 
 # --------------------------------------------------------------------------- triage
 with t_triage:
@@ -325,6 +527,7 @@ with t_triage:
             from {q("ENGINE.ENG_ALERT_RANKED")}
             order by money_rank"""
     )
+    ranked = ranked[ranked["site_code"].isin(sel_sites)] if not ranked.empty else ranked
     if ranked.empty:
         st.warning("No risk scores. Run `just deploy-ml`, then `just deploy-engine`.")
     else:
@@ -687,6 +890,7 @@ with t_fleet:
     ld = _run(
         f"select * from {q('SERVING.MET_LD_EXPOSURE')} order by ld_exposure_run_rate_inr desc"
     )
+    ld = ld[ld["site_code"].isin(sel_sites)] if not ld.empty else ld
     if ld.empty:
         st.warning("No serving views. Run `just deploy-engine`.")
     else:
