@@ -48,7 +48,7 @@ create role if not exists WOA_SCHEDULER
     comment = 'Daily automation. Refreshes scores and suggestions; never applies. No privilege on ACTION (NFR-19, FR-85)';
 
 create role if not exists WOA_ENGINEER
-    comment = 'Developer role. CREATE inside a personal clone only; no grant on the shared WIND_OPS_AI';
+    comment = 'Developer role. No grants: personal clones retired; the team database WIND_OPS_AI is built by the recipes';
 
 create role if not exists WOA_RMC
     comment = 'P-7/P-2 remote monitoring. WOA_APP plus the suppression procedure. Cannot approve work orders';

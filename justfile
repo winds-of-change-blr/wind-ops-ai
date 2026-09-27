@@ -7,12 +7,10 @@ set unstable := true
 
 # --- variables ---------------------------------------------------------------
 
-# Which database this run targets. `dev` (default) resolves to your personal
-# clone; `shared` is the team database and is deliberately harder to hit.
-env := "dev"
-
-# Your initials, for the personal dev clone. Override: `just initials=jp deploy`.
-initials := lowercase(trim(shell("git config user.initials 2>/dev/null || echo ''")))
+# There is ONE database, WIND_OPS_AI, on the team account JKDRJBB-MW27072, and
+# every developer deploys to it (AGENTS.md > Deployment). There are no personal
+# clones and no per-user suffix: `_resolve-db` refuses any other account.
+team_account := "JKDRJBB-MW27072"
 
 # The Snowflake connection. `snow` picks up SNOWFLAKE_DEFAULT_CONNECTION_NAME from
 # the environment on its own, so recipes below deliberately do NOT pass
@@ -20,10 +18,9 @@ initials := lowercase(trim(shell("git config user.initials 2>/dev/null || echo '
 # there is only ever one answer. This variable exists so `just target` can show it.
 connection := env_var_or_default("SNOWFLAKE_DEFAULT_CONNECTION_NAME", "(snow default)")
 
-# The resolved target database. `_resolve-db` is what REFUSES a bad combination;
-# this is only the name. Any recipe that touches Snowflake must depend on
-# `_resolve-db` so the guard runs before this value is used.
-database := if env == "shared" { "WIND_OPS_AI" } else { "WIND_OPS_AI_DEV_" + uppercase(initials) }
+# The one target database. `_resolve-db` is what REFUSES the wrong account; any
+# recipe that touches Snowflake must depend on it so the guard runs first.
+database := "WIND_OPS_AI"
 
 # Where the numbered deployment SQL lives.
 sql_dir := "sql"
@@ -58,7 +55,6 @@ default:
 [group('snowflake')]
 target: _resolve-db
     @printf 'connection : %s\n' "{{connection}}"
-    @printf 'env        : %s\n' "{{env}}"
 
 # --- session -----------------------------------------------------------------
 
@@ -130,7 +126,7 @@ hooks:
 # Three rules every one of these must satisfy when implemented:
 #   1. Idempotent. Safe to run twice. CREATE OR ALTER / IF NOT EXISTS, never
 #      "drop then create" on anything holding data.
-#   2. Prints its target first, and refuses `env=shared` without confirmation.
+#   2. Prints its target first; `_resolve-db` refuses any account but the team's.
 #   3. No statement may fail unnoticed. Originally written as "one statement per
 #      call", on the belief that batched multi-statement SQL silently skips
 #      statements. That is NOT reproducible on snow CLI 3.27: `snow sql -f` echoes
@@ -148,7 +144,7 @@ deploy: _resolve-db
     # own recipe and gates itself, so the first failure stops the chain with the
     # failing gate on screen. T-52 runs this twice into a clean database.
     set -euo pipefail
-    j="just env={{env}} initials={{initials}}"
+    j="just"
     for step in deploy-foundation deploy-data seed deploy-ml deploy-engine deploy-agent deploy-action deploy-app verify; do
         printf '\n\n##### %s #####\n' "$step"
         $j "$step"
@@ -162,30 +158,21 @@ deploy: _resolve-db
 # Two stages, per docs/03-architecture/deployment.md §3:
 #   0x  elevated, one-time, account objects only (roles, warehouses, database)
 #   1x  WOA_ADMIN — schemas and grants; holds no account-level privilege
-# 12_grants_dev.sql runs only for env=dev: WOA_ENGINEER gets CREATE in a personal
-# clone and, per 04-code.md §6, no grant on the shared WIND_OPS_AI at all.
+# There is no developer-clone grant step any more: one team database, built
+# only through these recipes as WOA_ADMIN.
 [doc('Roles, warehouses, database, schemas, grants. Once per environment')]
 [group('snowflake')]
 deploy-foundation: _resolve-db
     #!/usr/bin/env bash
     set -euo pipefail
     printf 'database   : %s\n' "{{database}}"
-    printf 'connection : %s\n' "{{connection}}"
-    printf 'env        : %s\n\n' "{{env}}"
+    printf 'connection : %s\n\n' "{{connection}}"
 
     for f in 01_account_roles 02_account_warehouses 03_account_database \
              10_schemas 11_grants; do
         printf '\n=== %s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/00_setup/${f}.sql" -D "database={{database}}"
     done
-
-    # Developer build rights belong in a personal clone only.
-    if [ "{{env}}" = "dev" ]; then
-        printf '\n=== 12_grants_dev (env=dev) ===\n'
-        {{snow_sql}} -f "{{sql_dir}}/00_setup/12_grants_dev.sql" -D "database={{database}}"
-    else
-        printf '\nskipped 12_grants_dev: WOA_ENGINEER gets no grant on %s\n' "{{database}}"
-    fi
 
     printf '\nfoundation deployed into %s. Run `just verify`.\n' "{{database}}"
 
@@ -206,7 +193,6 @@ deploy-data: _resolve-db
     set -euo pipefail
     printf 'database   : %s\n' "{{database}}"
     printf 'connection : %s\n' "{{connection}}"
-    printf 'env        : %s\n\n' "{{env}}"
 
     # Order is a dependency order, not a preference: the functions must exist
     # before the procedures that call them, and 12_generate_all calls all of them.
@@ -569,43 +555,40 @@ sql FILE: _resolve-db
     printf 'file       : %s\n\n' "{{FILE}}"
     {{snow_sql}} -f "{{FILE}}" -D "database={{database}}"
 
-# Drop everything this project created in the resolved target. Destructive.
+# Drop everything this project created. Destructive, and it is the TEAM's
+# database: the one the demo runs from and every developer deploys to.
 #
-# IMPLEMENTED (US-44 — the teardown half of T-52).
-# Two guards, neither of which has an override flag:
-#   1. refuses env=shared outright — that is somebody else's database
-#   2. requires the resolved database name to be typed by hand
-# Warehouses and roles are ACCOUNT-LEVEL and shared by every developer's clone.
-# Dropping them affects the whole account, which is why guard 2 exists. See
-# sql/90_teardown/README.md.
-[doc('Drop everything this project created in the resolved target. Destructive')]
+# IMPLEMENTED (US-44 — the teardown half of T-52). No override flag. Two typed
+# confirmations: the database name AND the account name, so it cannot be run
+# by reflex or against the wrong account. Warehouses and roles are
+# account-level and cannot be undropped. See sql/90_teardown/README.md.
+[doc('Drop the team database, warehouses and roles. Destructive; two confirmations')]
 [group('snowflake')]
 teardown: _resolve-db
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [ "{{env}}" = "shared" ]; then
-        echo "refusing: teardown of the SHARED database is not available through this recipe." >&2
-        echo "  It would drop the database the demo runs from, plus the account-level" >&2
-        echo "  warehouses and roles every developer's clone depends on." >&2
-        echo "  This is a team decision (CONTRIBUTING.md > What CoCo must not decide alone)." >&2
-        exit 1
-    fi
-
     printf 'database   : %s\n' "{{database}}"
+    printf 'account    : %s\n' "{{team_account}}"
     printf 'connection : %s\n\n' "{{connection}}"
-    echo 'This drops:'
-    echo "  * database {{database}} and everything in it"
-    echo '  * warehouses WOA_APP_WH, WOA_BUILD_WH   (ACCOUNT-LEVEL, shared)'
-    echo '  * the nine WOA_* roles                  (ACCOUNT-LEVEL, shared)'
+    echo 'This drops, for the WHOLE TEAM:'
+    echo "  * database {{database}} and everything in it (the demo included)"
+    echo '  * warehouses WOA_APP_WH, WOA_BUILD_WH'
+    echo '  * the nine WOA_* roles'
     echo
-    echo 'The warehouses and roles are shared with every other clone in this account.'
-    echo 'The database is recoverable with UNDROP; the roles and warehouses are not.'
+    echo 'The database is recoverable with UNDROP for one day; the roles and warehouses are not.'
+    echo 'Agree it with the team first (CONTRIBUTING.md > What CoCo must not decide alone).'
     echo
     printf 'Type the database name to confirm: '
     read -r typed
     if [ "$typed" != "{{database}}" ]; then
         echo "refusing: typed '$typed', expected '{{database}}'." >&2
+        exit 1
+    fi
+    printf 'Type the account name to confirm: '
+    read -r typed_acct
+    if [ "$typed_acct" != "{{team_account}}" ]; then
+        echo "refusing: typed '$typed_acct', expected '{{team_account}}'." >&2
         exit 1
     fi
 
@@ -615,27 +598,6 @@ teardown: _resolve-db
     done
 
     printf '\nteardown complete.\n'
-
-# Drop ONE personal database and nothing account-level. Unlike `teardown`,
-# this leaves the shared WOA_* roles and warehouses alone, so it is safe on an
-# account where other clones (and the demo) live. Non-interactive: the database
-# name must be typed as the argument. Refuses the shared database outright.
-# Implements: the database half of T-52.
-[doc('Drop one personal database only (not roles/warehouses). Arg: its exact name')]
-[group('snowflake')]
-teardown-db CONFIRM: _resolve-db
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ "{{env}}" = "shared" ]; then
-        echo "refusing: teardown-db never drops the shared database." >&2; exit 1
-    fi
-    if [ "{{CONFIRM}}" != "{{database}}" ]; then
-        echo "refusing: argument '{{CONFIRM}}' does not match the target '{{database}}'." >&2; exit 1
-    fi
-    {{snow_sql}} -f "{{sql_dir}}/90_teardown/01_database.sql" -D "database={{database}}"
-    left=$(snow sql -q "show databases like '{{database}}'" --format json | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')
-    [ "$left" = "0" ] || { echo "FAIL: {{database}} still exists after teardown" >&2; exit 1; }
-    printf 'PASS  %s dropped; roles and warehouses untouched.\n' "{{database}}"
 
 # --- release -----------------------------------------------------------------
 
@@ -691,29 +653,21 @@ clean:
 
 # --- internal ----------------------------------------------------------------
 
-# Resolve and print the target database. Refuses a dev target with no initials.
+# Print the target and REFUSE any account other than the team's. The account
+# rule (AGENTS.md > Deployment) is enforced here, not just written down: every
+# Snowflake recipe depends on this, so none can run against a trial account.
 [private]
 _resolve-db:
     #!/usr/bin/env bash
     set -euo pipefail
-    case "{{env}}" in
-      dev)
-        if [ -z "{{initials}}" ]; then
-            echo "error: no initials. Set once with:" >&2
-            echo "  git config user.initials nk" >&2
-            echo "or pass: just initials=nk <recipe>" >&2
-            exit 1
-        fi
-        printf 'database   : WIND_OPS_AI_DEV_%s\n' "$(echo '{{initials}}' | tr 'a-z' 'A-Z')"
-        ;;
-      shared)
-        printf 'database   : WIND_OPS_AI   *** SHARED ***\n'
-        ;;
-      *)
-        echo "error: env must be 'dev' or 'shared', got '{{env}}'" >&2
+    acct=$(snow sql -q "select current_organization_name() || '-' || current_account_name() as a" --format json 2>/dev/null \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["A"])' 2>/dev/null || true)
+    if [ "$acct" != "{{team_account}}" ]; then
+        echo "refusing: this connection is on account '${acct:-unknown}', not {{team_account}}." >&2
+        echo "  Set SNOWFLAKE_DEFAULT_CONNECTION_NAME to your connection for {{team_account}}." >&2
         exit 1
-        ;;
-    esac
+    fi
+    printf 'database   : %s   (team database on %s)\n' "{{database}}" "$acct"
 
 # Fail loudly for an unimplemented deployment recipe, naming what implements it.
 [private]

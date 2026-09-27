@@ -41,8 +41,8 @@ grant usage on database <% database %> to role WOA_TECH;
 
 -- WOA_PLANNER and WOA_RMC inherit WOA_APP, so they need nothing of their own.
 -- WOA_ADMIN owns the database and needs no grant on it.
--- WOA_ENGINEER is handled in 12_grants_dev.sql — it gets CREATE in a personal
--- clone and, per 04-code.md §6, no grant on the shared WIND_OPS_AI at all.
+-- WOA_ENGINEER gets nothing: per 04-code.md §6 it has no grant on WIND_OPS_AI,
+-- and the personal clones it used to build in were retired on 2026-09-27.
 
 -- =============================================================================
 -- 2. WOA_APP — the application runtime

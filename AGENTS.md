@@ -92,8 +92,8 @@ Naming for databases, schemas, tables, procedures, warehouses and roles is defin
 `docs/03-architecture/04-code.md` once the plan exists. Follow it. If it does not exist yet,
 propose a scheme and record it there rather than inventing names per file.
 
-Developer work happens in a personal clone (`WIND_OPS_AI_DEV_<INITIALS>`), never directly in
-the shared database.
+There is **one** database, `WIND_OPS_AI`, and every developer deploys to it through the
+recipes. No personal clones, and no object carries a user suffix.
 
 ## Evidence
 
@@ -149,9 +149,9 @@ and unreproducible by a judge.
   Personal or trial accounts (for example `BGTCHIX-UZ86048`) are for experiments only. Nothing built
   there counts as done until it has been redeployed to `JKDRJBB-MW27072` through the same recipes and
   `just verify` passes there. Evidence and `STATE.md` §5 record the account a result came from.
-- **`env=dev` is the default** and resolves to your personal clone `WIND_OPS_AI_DEV_<INITIALS>`
-  (set `git config user.initials nk` once). `env=shared` targets the team database and must be typed
-  deliberately, every time.
+- **Every recipe targets `WIND_OPS_AI`**, the team database. There is no `env` and no
+  initials; `_resolve-db` refuses any connection that is not on `JKDRJBB-MW27072`.
+  Coordinate before a redeploy that could disturb a teammate or the demo.
 - **Ad-hoc SQL still goes through `just sql <file>`** — a file in git, parameterised, never a
   literal database name. **No statement may fail unnoticed.** This rule was originally "one statement
   per call", on the belief that batched multi-statement SQL silently skips statements. That is not

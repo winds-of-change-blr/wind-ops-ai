@@ -93,7 +93,7 @@ asserts they are not collinear.
 invented per file.
 
 **Decision.** As specified in [04-code.md](../04-code.md): `WIND_OPS_AI` shared,
-`WIND_OPS_AI_DEV_<INITIALS>` personal clones, ten schemas, prefixed object names, two `XSMALL`
+`WIND_OPS_AI_DEV_<INITIALS>` personal clones (retired 2026-09-27: one team database only), ten schemas, prefixed object names, two `XSMALL`
 warehouses, a role hierarchy under `SYSADMIN`, and the database name always a script parameter.
 
 **Alternatives.** One schema — rejected: makes least-privilege grants impossible. Per-developer

@@ -218,8 +218,7 @@ begin
 
     -- T-33 grant half: nothing beyond OWNERSHIP and SELECT on any ACTION object,
     -- and no future grants scoped to ACTION. SELECT is tolerated because it
-    -- cannot write: in dev it reaches WOA_ENGINEER through 12_grants_dev's
-    -- database-wide future grant, which is how engineers read the audit.
+    -- cannot write, and read access to the audit is legitimate.
     bad := 0;
     show grants on table ACTION.AUD_ACTION;
     select count(*) into :n from table(result_scan(last_query_id())) where "privilege" not in ('OWNERSHIP', 'SELECT');

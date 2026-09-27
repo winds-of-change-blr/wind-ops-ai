@@ -4,7 +4,7 @@ Every figure on the page is read from Snowflake at generation time and printed
 beside the object it came from, so the summary can be re-checked against its
 source and can never drift into hand-typed claims. Run through `just results`.
 
-    uv run --with snowflake-connector-python python scripts/generate_results.py WIND_OPS_AI_DEV_NK
+    uv run --with snowflake-connector-python python scripts/generate_results.py WIND_OPS_AI
 """
 
 from __future__ import annotations
@@ -246,4 +246,4 @@ def main(db: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "WIND_OPS_AI_DEV_NK")
+    main(sys.argv[1] if len(sys.argv) > 1 else "WIND_OPS_AI")

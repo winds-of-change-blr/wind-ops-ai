@@ -86,7 +86,7 @@ Ask a human. These are in `AGENTS.md` as rules, and they are the ones that cost 
 | | |
 | --- | --- |
 | Editing `docs/00-hackathon/*` or `company-profile.md` | Given documents. Propose, never edit |
-| `env=shared` deployments, or `just teardown` | Someone else's database |
+| `just teardown` | Drops the team database, warehouses and roles for everyone |
 | Dropping scope, or changing a Must | A team decision — see `scope.md` cut order |
 | Adding a dependency | `uv add`, but ask first |
 | Anything touching credentials | Never in git |

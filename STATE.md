@@ -1,9 +1,9 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-09-26 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
-> **Plan day:** D9 · **Deployment account: `JKDRJBB-MW27072`** (team rule, `AGENTS.md` › Deployment; per NK 2026-09-27) · **Branch:** `main`
-> **The app exists:** `WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER` — https://app.snowflake.com/BGTCHIX/uz86048/#/streamlit-apps/WIND_OPS_AI_DEV_NK.APP.WOA_COMMAND_CENTER
-> **The agent exists:** `WIND_OPS_AI_DEV_NK.GEN.WOA_OPS_AGENT` — Snowsight › AI & ML › Agents
+> **Last updated:** 2026-09-27 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
+> **Plan day:** D9 · **Deployment: one team database `WIND_OPS_AI` on `JKDRJBB-MW27072`** (no personal clones; `just` refuses any other account) · **Branch:** `main`
+> **The app exists:** `WIND_OPS_AI.APP.WOA_COMMAND_CENTER` on `JKDRJBB-MW27072` — Snowsight › Projects › Streamlit
+> **The agent exists:** `WIND_OPS_AI.GEN.WOA_OPS_AGENT` — Snowsight › AI & ML › Agents
 
 **This file holds status, never intent.** Intent lives in `docs/`. If the two disagree: `docs/` wins on
 *what we are building*, this file wins on *how far we got*. Overwrite sections in place — never append.
@@ -84,22 +84,17 @@ action*; the RAID log holds the rest.
 
 **The section git cannot tell you.** Update it whenever you create or drop an object.
 
-> **Deployment account is `JKDRJBB-MW27072` for every developer** (`AGENTS.md` › Deployment, 2026-09-27).
-> Verified there 2026-09-27: `WIND_OPS_AI_DEV_SB` passes all **72** registered assertions (the 65 on `main` plus
-> 7 from open PR #16), with the window engine deployed and one score version; `WIND_OPS_AI_DEV_JP` exists but
-> is only partly built (no `OPS` tables).
-> **The inventory below is NK's `BGTCHIX-UZ86048` build** (trial, experiments only under the rule). It must be
-> redeployed to `JKDRJBB-MW27072` through the recipes before it counts.
-> Everything below was deployed **from the recipes** — `just deploy-foundation → deploy-data → seed →
-> deploy-ml → deploy-engine → deploy-app`, about 20 minutes end to end. The objects previously recorded on
-> `JKDRJBB-MW27072` and `EXKFAFL-NW77746` still exist there but are **no longer the project's state**.
->
-> **To deploy here you need a non-interactive connection.** NK's is `woa_bgtchix` (JWT key-pair, `I-16`).
-> Teammates: create your own key-pair, or ask NK. `SNOWFLAKE_DEFAULT_CONNECTION_NAME=<yours> just target`.
+> **One database, `WIND_OPS_AI`, on `JKDRJBB-MW27072`** (2026-09-27). It is NK's verified clone
+> `WIND_OPS_AI_DEV_NK` renamed (`sql/00_setup/95_migrate_dev_nk_to_team.sql`), with the semantic view,
+> search service, agent and app recreated through the recipes. `just verify` there: **72/72** assertions
+> (includes the 7 from PR #16, deployed from its branch) and **8/8** behavioural role checks. The app on
+> the stage is the redesign from the unmerged branch `feat/nk/app-user-journey`.
+> `WIND_OPS_AI_DEV_SB` and `WIND_OPS_AI_DEV_JP` were **dropped** after that verify (UNDROP window: one day).
+> `BGTCHIX-UZ86048` holds no project objects. Connect with `SNOWFLAKE_DEFAULT_CONNECTION_NAME=<yours for JKDRJBB>`.
 
-| Thing | State on `BGTCHIX-UZ86048` |
+| Thing | State on `JKDRJBB-MW27072` |
 | --- | --- |
-| Database | **`WIND_OPS_AI_DEV_NK`** — full stack. `WIND_OPS_AI` (shared) **not created** |
+| Database | **`WIND_OPS_AI`** — full stack, the only project database in the account |
 | Roles / warehouses | 9 `WOA_*` roles with hierarchy and grants · `WOA_APP_WH`, `WOA_BUILD_WH` (XSMALL, 60 s suspend) |
 | RAW | 14 dimensions seeded · `FCT_SIGNAL_10MIN` ~108.3M (**3 turbines' power and yaw edited in place by the `GS-5` seed**) · `FCT_CMS_FEATURE` ~3.5M · `FCT_ALARM_NORMALISED` **340,431** · `FCT_TURBINE_STATE` · `FCT_WORK_ORDER` · 58 seeded failures · planning context: `FCT_WIND_FORECAST` (504 site-days), `DIM_CREW_COVERAGE`, `FCT_CRANE_BOOKING` (2), `FCT_PART_INBOUND` (1), `DIM_REPAIR_PLAN`; `DIM_CREW.certifications` filled |
 | ML | `RISK_CLASSIFIER` · `ANOMALY_DETECTOR` · `FEAT_COMPONENT_DAILY` · `SCORE_COMPONENT_RISK` (**400, as of 2026-08-26, 6 HIGH**) · `DRIVER_COMPONENT_RISK` · `SCORE_COMPONENT_ANOMALY` (48,813) · `ML_BASELINE_SPEC` · `ML_INDEPENDENCE_SPEC` · **`V_SCORING_ASOF`** |
@@ -109,7 +104,7 @@ action*; the RAID log holds the rest.
 | GEN | **`WOA_OPS_AGENT`** — Cortex Agent, `claude-sonnet-4-5`, two read-only tools (`fleet_data` → `SV_WIND_OPS`, `maintenance_docs` → `CSS_MAINTENANCE_DOCS`) |
 | ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` · **`ENG_WINDOW_CANDIDATE`** (1,008 windows, 174 feasible, six constraint columns each) · **`ENG_SUGGESTION`** / **`ENG_SUGGESTION_ITEM`** (1 bundle, 3 single jobs, 1 infeasible) · `ENG_PLAN_IMPACT` · `SP_BUILD_WINDOW_CANDIDATES`, `SP_BUILD_SUGGESTIONS` |
 | ACTION | `AUD_ACTION` (append-only audit, refusals included) · `ACT_SUPPRESSION` · `ACT_WORK_ORDER_DRAFT` · `ACT_WORK_ORDER` · `ACT_DECISION` · `ACT_V_SUPPRESSION_ACTIVE` · five owner's-rights procedures (`SP_APPROVE_SUPPRESSION`, `SP_REVOKE_SUPPRESSION` → `WOA_RMC`; `SP_DRAFT_WORK_ORDER`, `SP_APPROVE_WORK_ORDER`, `SP_REJECT_WORK_ORDER_DRAFT` → `WOA_PLANNER`). Self-test rows are marked `IS_SELFTEST` and hidden by the app · **`SP_ACCEPT_SUGGESTION`**, **`SP_REJECT_SUGGESTION`** (`WOA_PLANNER`); drafts gain `window_id`, `window_start`, `window_end`, `suggestion_id` |
-| OPS | `DQ_ASSERTION` (**65**) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · seven `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` · `OPS_TEST_HOOK` (`FAIL_AUDIT`, **off**; asserted) |
+| OPS | `DQ_ASSERTION` (**72**) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · seven `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` · `OPS_TEST_HOOK` (`FAIL_AUDIT`, **off**; asserted) |
 | APP | **`WOA_COMMAND_CENTER`** — Streamlit, **warehouse runtime** `SYSTEM$WAREHOUSE_RUNTIME`, Streamlit 1.52.2 from the Anaconda channel, warehouse `WOA_APP_WH`, source on `APP.WOA_APP_STAGE`. 5 tabs; writes via the ACTION procedures only |
 | **Not yet built** | window engine (`ENG_WINDOW_CANDIDATE`) · verified queries · dynamic tables · notification integration · scheduled task · the app's *Ask* tab |
 | Proven possible here | `CREATE SEMANTIC VIEW` · `CREATE CORTEX SEARCH SERVICE` · `CREATE AGENT` + `DATA_AGENT_RUN` · `AI_PARSE_DOCUMENT` (LAYOUT, SSE stage) · `CREATE STREAMLIT` (warehouse runtime; container runtime creates but **cannot boot** without egress) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
@@ -187,6 +182,7 @@ ADR or RAID reference, that is a defect.
 | **`T-52` ran on a scratch database, not with account teardown.** `just teardown` drops the shared `WOA_*` roles and warehouses as well as the database, which would destroy the live demo on this one account. `just deploy` ran twice into `WIND_OPS_AI_DEV_T52`, then the new `just teardown-db` dropped only that database. Account-level teardown remains **unexercised** | evidence 10 §3; `teardown-db` recipe |
 | **Gate labels corrected.** The answer-quality assertions had been filed under `G3`; `T-48` is now `G4` and `T-37`/`T-42` are `G5`, so `G3` counts only the numbers | `sql/15_quality/05_g3_assertions.sql` |
 | **Deployment returns to `JKDRJBB-MW27072`** (NK, 2026-09-27), reversing the 2026-09-26 move to `BGTCHIX-UZ86048`. SB's `WIND_OPS_AI_DEV_SB` there is verified green. BGTCHIX is now experiments-only; NK's work needs a redeploy to JKDRJBB before it counts | `AGENTS.md` › Deployment |
+| **Personal clones retired: one team database `WIND_OPS_AI`** (NK, 2026-09-27). `env`/`initials`, `12_grants_dev.sql` and `teardown-db` are gone; `_resolve-db` refuses any account but `JKDRJBB-MW27072`; `just teardown` asks for the database and account names. `_NK` was renamed rather than redeployed; `_SB`/`_JP` dropped | `justfile`; `AGENTS.md` › Deployment |
 | **The window engine's inputs are synthetic and ours** (NK's choice: a generator step): a 12-week seasonal forecast, crew certifications and site coverage, two crane-team commitments, one open bearing order, and a repair plan (job days, mobilisation, gust limits of 10 m/s for cranes and 15 m/s up-tower). None are Vayuveda facts | `sql/10_generate/14_planning_context.sql` header |
 | **Parts are allocated in expected-loss order**, stock first, then open orders; a job beyond the supply waits for a fresh order's lead time. That is why MH-STR's main bearing is infeasible: the two TN-TVL bearings rank higher | `ENG_WINDOW_CANDIDATE`; `DQ-T72-BINDING` |
 | **Bundling is greedy, not optimal**: crane jobs at one site with one crane team, highest loss first, at the earliest day all fit back to back. A cheaper plan may exist; this one is feasible and explained | `sql/40_engine/04_suggestions.sql` header |

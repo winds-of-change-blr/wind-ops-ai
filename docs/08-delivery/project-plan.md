@@ -147,7 +147,7 @@ Short daily sessions mean the ritual matters more than it would in long blocks.
 | When | What |
 | --- | --- |
 | Start | Async standup in writing: yesterday, today, blocked |
-| During | Work in a personal clone. Small PRs |
+| During | Deploy to `WIND_OPS_AI` through the recipes. Small PRs |
 | End | Push, open PR, record CoCo evidence **with its session and request IDs** if the session produced anything meaningful |
 
 Rules that protect a team working in short sessions: **never end a session with a broken `main`**;
