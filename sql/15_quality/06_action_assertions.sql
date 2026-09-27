@@ -53,7 +53,11 @@ using (
         ('DQ-FAULT-HOOK-OFF',          'T-35', 'G4', 'The audit fault-injection hook is off',
             'A test switch left on in a live system', true),
         ('DQ-DRAFT-PROCEDURE-RESOLVES','T-32', 'G4', 'Every part of a scored component class maps to a procedure document that was parsed',
-            'A work order citing a procedure that does not exist', false)
+            'A work order citing a procedure that does not exist', false),
+        -- T-61's third leg lives here, not in the engine suite: it reads ACTION,
+        -- which deploy-engine's gate runs before.
+        ('DQ-T61-NEVER-SUPPRESSED',    'T-61', 'G4', 'No UNDETERMINED incident is under an active suppression',
+            'Hiding what the system does not understand', true)
     as s(id, test_id, gate, title, prevents, gating)
 ) src
 on tgt.assertion_id = src.id
@@ -272,6 +276,14 @@ begin
     insert into OPS.DQ_RESULT (run_id, assertion_id, test_id, run_at, passed, measured_value, threshold_value, detail)
     select :run_id, 'DQ-DRAFT-PROCEDURE-RESOLVES', 'T-32', current_timestamp()::timestamp_ntz,
            :n = 0, :n, 0, :n || ' parts of scored component classes with no parsed procedure document';
+
+    select count(*) into :n
+      from ACTION.ACT_V_SUPPRESSION_ACTIVE s
+      join ENGINE.ENG_INCIDENT i on i.incident_id = s.incident_id
+     where i.incident_class = 'UNDETERMINED';
+    insert into OPS.DQ_RESULT (run_id, assertion_id, test_id, run_at, passed, measured_value, threshold_value, detail)
+    select :run_id, 'DQ-T61-NEVER-SUPPRESSED', 'T-61', current_timestamp()::timestamp_ntz,
+           :n = 0, :n, 0, :n || ' UNDETERMINED incidents under an active suppression';
 
     return 'Action quality run ' || :run_id || ' complete';
 end;

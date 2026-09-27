@@ -220,22 +220,61 @@ with t_alarms:
         )
 
         st.subheader("The queue")
-        klass = st.segmented_control(
-            "Class",
-            ["ACTIONABLE", "UNDETERMINED", "NUISANCE"],
-            default="ACTIONABLE",
+        # One queue, not a class filter (ADR-0017, T-61): every ACTIONABLE, then
+        # every UNDETERMINED, ranked by the engine. NUISANCE is shown separately,
+        # and a page never truncates without saying how much it left out.
+        view = st.segmented_control(
+            "Show",
+            ["Queue", "Nuisance"],
+            default="Queue",
         )
-        queue = _run(
-            f"""select incident_id, turbine_id, site_code, component_id, alarm_code, alarm_name,
-                       severity, is_safety_critical, incident_start, n_alarms, all_auto_reset,
-                       is_corroborated, is_elevated, noise_condition, class_reason
-                from {q("ENGINE.ENG_INCIDENT")}
-                where incident_class = ?
-                order by is_safety_critical desc, is_elevated desc, incident_start desc
-                limit 200""",
-            params=[klass or "ACTIONABLE"],
+        cols = """incident_id, incident_class, turbine_id, site_code, component_id, alarm_code,
+                  alarm_name, severity, is_safety_critical, incident_start, n_alarms,
+                  all_auto_reset, is_corroborated, is_elevated, noise_condition, class_reason"""
+        if (view or "Queue") == "Queue":
+            queue = _run(
+                f"""select queue_rank, {cols}, queue_total
+                    from {q("ENGINE.ENG_OPERATOR_QUEUE")}
+                    order by queue_rank
+                    limit 200"""
+            )
+            total = int(queue["queue_total"].iloc[0]) if not queue.empty else 0
+            queue = queue.drop(columns=["queue_total"])
+        else:
+            queue = _run(
+                f"""select {cols}, count(*) over () as queue_total
+                    from {q("ENGINE.ENG_INCIDENT")}
+                    where incident_class = 'NUISANCE'
+                    order by incident_start desc
+                    limit 200"""
+            )
+            total = int(queue["queue_total"].iloc[0]) if not queue.empty else 0
+            queue = queue.drop(columns=["queue_total"])
+        st.caption(
+            f"Showing **{len(queue):,} of {total:,}**. Undetermined incidents stay in the queue, "
+            "ranked below actionable — never hidden, never suppressible."
         )
         st.dataframe(queue, hide_index=True, width="stretch")
+
+        st.subheader("Why was it classed this way?")
+        why = st.selectbox(
+            "Incident", queue["incident_id"].tolist() if not queue.empty else [], key="why"
+        )
+        if why:
+            st.dataframe(
+                _run(
+                    f"""select channel, verdict, measured_value, reference_value, as_of_date, detail
+                        from {q("ENGINE.ENG_INCIDENT_EVIDENCE")}
+                        where incident_id = ?
+                        order by case channel when 'CORROBORATION' then 1
+                                 when 'OPERATING_POINT' then 2 when 'RESET_RECURRENCE' then 3
+                                 else 4 end""",
+                    params=[why],
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+            st.caption("The four channels ADR-0017 weighs, stored so a human can disagree (T-68).")
 
         st.subheader("Suppress an incident")
         st.caption(
