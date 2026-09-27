@@ -1,7 +1,7 @@
 # Development 12 — incident evidence and the `UNDETERMINED` queue
 
-> **Gates:** `G4`, action is safe (the alarm-intelligence half) · **Date:** 2026-09-26 · **By:** SB with CoCo
-> **Account:** `JKDRJBB-MW27072` · **Database:** `WIND_OPS_AI_DEV_SB` · **Branch:** `feat/sb/incident-evidence`
+> **Gates:** `G4`, action is safe (the alarm-intelligence half) · **Date:** 2026-09-26 · **By:** JP with CoCo
+> **Account:** `JKDRJBB-MW27072` · **Database:** `WIND_OPS_AI_DEV_SB` · **Branch:** `feat/jp/incident-evidence`
 
 ## 1. Verifiable identifiers
 
@@ -19,7 +19,7 @@
 ## 2. Prompt
 
 > *"As per the plan, what is the next thing"* → *"Let's do it"*, accepting: land the scorer fix,
-> claim D10 in `STATE.md`, then build `T-61` and `T-68` on `feat/sb/incident-evidence`.
+> claim D10 in `STATE.md`, then build `T-61` and `T-68` on `feat/jp/incident-evidence`.
 
 D10 in [`project-plan.md`](../../../08-delivery/project-plan.md) is *"Alarm classification +
 `UNDETERMINED` + evidence rows"*, proved by `T-68`, `T-61` and `T-31`. `T-31` was already done (NK,
@@ -74,7 +74,7 @@ After the rollback there were 63,748 evidence rows, unchanged.
 
 ## 4. What a human changed
 
-Nothing in the code. SB directed the order of work (scorer fix first, then claim, then build) and
+Nothing in the code. JP directed the order of work (scorer fix first, then claim, then build) and
 accepted the plan as proposed.
 
 ## 5. What CoCo got wrong

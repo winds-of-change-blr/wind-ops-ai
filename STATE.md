@@ -36,7 +36,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| SB | D10 incident evidence: `FR-63`/`ADR-0017` evidence rows (`T-68`), `FR-64`, `UNDETERMINED` never hidden and rate published (`T-61`) | `feat/sb/incident-evidence` | 2026-09-26 | Built and verified on `WIND_OPS_AI_DEV_SB` (`JKDRJBB-MW27072`); NK's window-engine row cleared — PR #12 merged |
+| JP | D10 incident evidence: `FR-63`/`ADR-0017` evidence rows (`T-68`), `FR-64`, `UNDETERMINED` never hidden and rate published (`T-61`) | `feat/jp/incident-evidence` | 2026-09-26 | Built and verified on `WIND_OPS_AI_DEV_SB` (`JKDRJBB-MW27072`); NK's window-engine row cleared — PR #12 merged |
 
 ## 3. Next actions, in order
 
@@ -187,7 +187,7 @@ ADR or RAID reference, that is a defect.
 | **Bundling is greedy, not optimal**: crane jobs at one site with one crane team, highest loss first, at the earliest day all fit back to back. A cheaper plan may exist; this one is feasible and explained | `sql/40_engine/04_suggestions.sql` header |
 | **Accepting a suggestion schedules existing drafts; it does not create them.** Each component needs a draft first, so accept reuses the draft's evidence and refusals instead of a second drafting path | `sql/50_action/04_planning_procedures.sql` header |
 | **`T-73` (free-text constraints) is not built**, and the incident confirm/dismiss/reinstate half of `T-74` is not built | NK's scope choice for this round |
-| **D10 was built and verified on `JKDRJBB-MW27072`, not the working account `BGTCHIX-UZ86048`.** SB has no `BGTCHIX` credential; the full stack was rebuilt from the recipes into `WIND_OPS_AI_DEV_SB` first (65/65), then D10 on top (72/72). Nothing on `BGTCHIX` changed and none of its budget was spent | §5 ENGINE row; [`evidence/development/12`](docs/06-coco/evidence/development/12-incident-evidence.md) §1 and §6 |
+| **D10 was built and verified on `JKDRJBB-MW27072`, not the working account `BGTCHIX-UZ86048`.** JP has no `BGTCHIX` credential; the full stack was rebuilt from the recipes into `WIND_OPS_AI_DEV_SB` first (65/65), then D10 on top (72/72). Nothing on `BGTCHIX` changed and none of its budget was spent | §5 ENGINE row; [`evidence/development/12`](docs/06-coco/evidence/development/12-incident-evidence.md) §1 and §6 |
 | **`NUISANCE` needs three more things than ADR-0017 lists**: a matched-load reading that exists and is not above normal, and no MEDIUM/HIGH risk on the component on the day or on the turbine from an earlier score. Each only makes nuisance harder. Measured: they blocked 2 of 35 (both `I-19`) | `sql/40_engine/01_alarm_incidents.sql` header; evidence 12 §5 |
 
 ## 8. Latest evidence entry
