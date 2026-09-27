@@ -27,7 +27,9 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Wind Ops AI — Command Center", layout="wide")
+st.set_page_config(
+    page_title="Wind Ops AI — Command Center", layout="wide", initial_sidebar_state="expanded"
+)
 
 _IDENT = re.compile(r"^[A-Z][A-Z0-9_]{0,254}$")
 
@@ -123,15 +125,20 @@ def _show(result: dict) -> None:
         st.error(f"**Refused.** {msg}", icon=":material/block:")
 
 
-def _ask_agent(prompt: str) -> dict:
-    """One non-streaming run of the Cortex Agent (FR-48).
+def _ask_agent(messages: list[dict]) -> dict:
+    """One non-streaming run of the Cortex Agent over a whole conversation (FR-48).
 
-    The agent has only read tools (T-48), so this cannot change anything. The
-    agent name and the whole request body are bound, never interpolated.
+    `messages` is the chat so far, oldest first, ending with the user's turn, so
+    follow-ups ("and what part does it need?") keep their meaning. The agent has
+    only read tools (T-48), so this cannot change anything. The agent name and
+    the whole request body are bound, never interpolated.
     """
     body = json.dumps(
         {
-            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+            "messages": [
+                {"role": m["role"], "content": [{"type": "text", "text": m["text"]}]}
+                for m in messages
+            ],
             "stream": False,
         }
     )
@@ -147,68 +154,149 @@ def _ask_agent(prompt: str) -> dict:
     return json.loads(row[0]) if isinstance(row[0], str) else dict(row[0])
 
 
-def _ask_box(slot: str, context: str, placeholder: str) -> None:
-    """An ask box in context. The answer carries its figures or its citations.
-
-    `context` tells the agent what the user is looking at; the user's question
-    is appended to it. An answer with neither a data table nor a citation is
-    labelled as unsupported rather than passed off as grounded (FR-55).
-    """
-    key = f"answer::{slot}"
-    with st.form(f"ask::{slot}", border=False):
-        question = st.text_input("Ask the Wind Ops Assistant", placeholder=placeholder)
-        asked = st.form_submit_button("Ask", icon=":material/forum:")
-    if asked and question.strip():
-        with st.spinner(
-            "Asking the agent — it reads the semantic view and the maintenance documents…"
-        ):
-            try:
-                answer = _ask_agent(f"{context}\n\nQuestion: {question.strip()}")
-            except Exception as exc:  # shown, never swallowed
-                answer = {"error": str(exc)}
-        st.session_state[key] = (question.strip(), answer)
-    if key not in st.session_state:
-        return
-
-    asked_q, answer = st.session_state[key]
-    if "error" in answer:
-        st.error(f"The agent could not answer: {answer['error'][:300]}", icon=":material/error:")
-        return
+def _parse_answer(answer: dict) -> dict:
+    """Reduce an agent response to what the chat shows: text, tables, citations."""
     parts = answer.get("content") or []
-    st.markdown(f"**Q:** {asked_q}")
-    # Streamlit reads `$…$` as LaTeX; escape it so figures render as written.
     text = "\n\n".join(
         p["text"].strip() for p in parts if p.get("type") == "text" and p.get("text")
     )
-    st.markdown(text.replace("$", r"\$") or "_The agent returned no text._")
-
-    tables = [p["table"] for p in parts if p.get("type") == "table"]
-    for t in tables:
-        rs = t.get("result_set") or {}
+    tables = []
+    for p in parts:
+        if p.get("type") != "table":
+            continue
+        rs = p["table"].get("result_set") or {}
         cols = [c["name"].lower() for c in (rs.get("resultSetMetaData") or {}).get("rowType", [])]
         if cols:
-            st.caption(t.get("title") or "From the fleet data")
-            st.dataframe(
-                pd.DataFrame(rs.get("data") or [], columns=cols), hide_index=True, width="stretch"
+            tables.append(
+                (
+                    p["table"].get("title") or "From the fleet data",
+                    pd.DataFrame(rs.get("data") or [], columns=cols),
+                )
             )
-
     cites: dict[str, dict] = {}
     for p in parts:
         for a in p.get("annotations") or []:
             if a.get("type") == "cortex_search_citation":
                 cites.setdefault(a.get("doc_id") or a.get("doc_title"), a)
-    if cites:
-        with st.expander(
-            f"Sources — {len(cites)} maintenance document section(s)", icon=":material/menu_book:"
-        ):
-            for c in cites.values():
-                st.markdown(f"**{c.get('doc_title')}** · `{c.get('relative_path')}`")
-                st.caption((c.get("text") or "")[:400])
-    elif not tables:
-        st.warning(
-            "No data table and no document citation came back — treat this answer as unsupported.",
-            icon=":material/help:",
+    follow = [
+        s["query"]
+        for p in parts
+        if p.get("type") == "suggested_queries"
+        for s in p.get("suggested_queries") or []
+        if s.get("query")
+    ][:3]
+    return {"text": text, "tables": tables, "cites": list(cites.values()), "follow": follow}
+
+
+# What the user is looking at, registered by the tabs as they render and read by
+# the sidebar assistant at the end of the script. label -> context sentence.
+_ASK_CONTEXT: dict[str, str] = {"Fleet": "An operator is asking about the whole fleet."}
+
+
+def _ask_context(kind: str, label: str, context: str) -> None:
+    """Offer `label` to the assistant. A newly selected row becomes the default."""
+    _ASK_CONTEXT[label] = context
+    prev = st.session_state.get(f"ask_prev::{kind}")
+    if prev is not None and prev != label:
+        st.session_state["ask_about"] = label
+    st.session_state[f"ask_prev::{kind}"] = label
+
+
+def _render_turn(turn: dict) -> None:
+    """One chat bubble. Tables and sources fold away: the sidebar is narrow."""
+    with st.chat_message(turn["role"], avatar=None if turn["role"] == "user" else ":material/air:"):
+        if turn["role"] == "user":
+            st.markdown(turn["text"].replace("$", r"\$"))
+            if turn.get("about") and turn["about"] != "Fleet":
+                st.caption(f"about {turn['about']}")
+            return
+        if turn.get("error"):
+            st.error(f"The agent could not answer: {turn['error'][:300]}", icon=":material/error:")
+            return
+        # Streamlit reads `$…$` as LaTeX; escape it so figures render as written.
+        st.markdown(turn["text"].replace("$", r"\$") or "_The agent returned no text._")
+        for title, df in turn["tables"]:
+            with st.expander(f"{title} · {len(df)} row(s)", icon=":material/table:"):
+                st.dataframe(
+                    df, hide_index=True, width="stretch", height=min(38 + 35 * len(df), 260)
+                )
+        if turn["cites"]:
+            with st.expander(f"Sources · {len(turn['cites'])}", icon=":material/menu_book:"):
+                for c in turn["cites"]:
+                    st.markdown(f"**{c.get('doc_title')}**  \n`{c.get('relative_path')}`")
+                    st.caption((c.get("text") or "")[:300])
+        elif not turn["tables"]:
+            # FR-55: never pass an ungrounded answer off as grounded.
+            st.warning(
+                "No data table and no citation came back — treat as unsupported.",
+                icon=":material/help:",
+            )
+
+
+def _assistant() -> None:
+    """The Wind Ops Assistant, in the sidebar, for every tab (FR-48, FR-86).
+
+    Context is the user's "Asking about" choice, defaulting to the row they most
+    recently selected: Streamlit does not expose the active tab. The context is
+    sent with each question, not stored in the history, so switching subject
+    mid-conversation is honest about what each question was about.
+    """
+    h1, h2 = st.columns([3, 1], vertical_alignment="center")
+    h1.markdown("**:material/forum: Assistant**")
+    chat: list[dict] = st.session_state.setdefault("chat", [])
+    if chat and h2.button("Clear", type="tertiary", key="chat_clear"):
+        chat.clear()
+        st.rerun()
+
+    options = list(_ASK_CONTEXT)
+    if st.session_state.get("ask_about") not in options:
+        st.session_state["ask_about"] = "Fleet"
+    about = st.selectbox("Asking about", options, key="ask_about")
+
+    for turn in chat:
+        _render_turn(turn)
+    if not chat:
+        st.caption(
+            "Ask about risk, availability, LD exposure, alarms or a maintenance procedure. "
+            "Answers cite the fleet data or the procedure they came from. Read-only."
         )
+
+    pending = st.session_state.pop("chat_pending", None)
+    last = chat[-1] if chat else None
+    if last and last["role"] == "assistant" and last.get("follow") and not pending:
+        for i, fq in enumerate(last["follow"]):
+            if st.button(
+                fq,
+                key=f"chat_follow::{len(chat)}::{i}",
+                icon=":material/subdirectory_arrow_right:",
+                type="tertiary",
+            ):
+                st.session_state["chat_pending"] = fq
+                st.rerun()
+
+    typed = st.chat_input("Ask the Wind Ops Assistant", key="chat_input")
+    question = (typed or pending or "").strip()
+    if not question:
+        return
+
+    chat.append({"role": "user", "text": question, "about": about})
+    _render_turn(chat[-1])
+    # Only complete, answered pairs go back to the agent; a failed turn is dropped.
+    history = []
+    for u, a in zip(chat[:-1:2], chat[1:-1:2], strict=False):
+        if u["role"] == "user" and a["role"] == "assistant" and a.get("text"):
+            history += [
+                {"role": "user", "text": u["text"]},
+                {"role": "assistant", "text": a["text"]},
+            ]
+    history.append({"role": "user", "text": f"{_ASK_CONTEXT[about]}\n\nQuestion: {question}"})
+    with st.spinner("Reading the fleet data and the maintenance documents…"):
+        try:
+            turn = {"role": "assistant", **_parse_answer(_ask_agent(history))}
+        except Exception as exc:  # shown, never swallowed
+            turn = {"role": "assistant", "text": "", "error": str(exc)}
+    chat.append(turn)
+    st.rerun()
 
 
 def inr(x) -> str:
@@ -244,18 +332,15 @@ def _reset_filters() -> None:
 
 with st.sidebar:
     st.markdown("**:material/air: Wind Ops AI**  \nVayuveda Wind Systems")
-    st.caption("Scoring window")
-    with st.container(border=True):
-        if as_of is not None:
-            w1, w2 = st.columns(2)
-            w1.metric("Risk scored as of", str(as_of))
-            w2.metric("Data ends", str(asof.iloc[0]["data_end_date"]))
-            st.caption(
-                f"**{int(asof.iloc[0]['horizon_days'])} days ahead.** A prediction can only "
-                "be checked if that much future exists (I-13)."
-            )
-        else:
-            st.caption("No scoring run yet.")
+    # One line, so the assistant below gets the height.
+    if as_of is not None:
+        st.caption(
+            f"Risk scored as of **{as_of}** · data ends **{asof.iloc[0]['data_end_date']}** · "
+            f"{int(asof.iloc[0]['horizon_days'])} days ahead",
+            help="A prediction can only be checked if that much future exists (I-13).",
+        )
+    else:
+        st.caption("No scoring run yet.")
     fh1, fh2 = st.columns([3, 1], vertical_alignment="bottom")
     fh1.caption("Filters")
     fh2.button("Reset", on_click=_reset_filters, type="tertiary")
@@ -265,13 +350,17 @@ with st.sidebar:
     sel_sev = st.pills(
         "Severity", SEVERITIES, selection_mode="multi", default=SEVERITIES, key="f_sev"
     )
+    fleet_note = (
+        f"**Fleet** · {int(fleet.iloc[0]['turbines'])} turbines · "
+        f"{int(fleet.iloc[0]['sites'])} sites · "
+        if not fleet.empty
+        else ""
+    )
+    st.caption(fleet_note + "**Data** · synthetic — the system is not")
     st.divider()
-    if not fleet.empty:
-        st.caption(
-            f"**Fleet** · {int(fleet.iloc[0]['turbines'])} turbines · "
-            f"{int(fleet.iloc[0]['sites'])} sites"
-        )
-    st.caption("**Data** · synthetic — the system is not")
+    # Filled at the end of the script, once the tabs have registered what is
+    # selected on them (_ask_context).
+    assistant_slot = st.container()
 
 sel_sites = sel_sites or []
 sel_sev = sel_sev or []
@@ -517,14 +606,14 @@ with t_alarms:
                         "Measured against reference. The four channels ADR-0017 weighs, "
                         "stored so a human can disagree (T-68)."
                     )
-                _ask_box(
-                    f"incident::{iid}",
+                _ask_context(
+                    "incident",
+                    f"Incident · {d['turbine_id']} · {d['alarm_code']}",
                     f"An RMC engineer is looking at alarm incident {iid}: {d['alarm_code']} "
                     f"({d['alarm_name']}) on turbine {d['turbine_id']}, component "
                     f"{d['component_id'] or 'unknown'}, severity {d['severity']}, started "
                     f"{d['incident_start']}, engine class {d['incident_class']}. "
                     "Answer about this incident and this turbine.",
-                    "e.g. What does this alarm usually mean, and what is the procedure?",
                 )
 
             with right.container(border=True):
@@ -705,12 +794,12 @@ with t_triage:
                 f"Importance method: `{drivers.iloc[0]['importance_method']}` — a train-split "
                 "standardised difference, not a per-prediction attribution (I-8)."
             )
-        _ask_box(
-            f"component::{cid}",
+        _ask_context(
+            "component",
+            f"Component · {cid}",
             f"A reliability engineer is looking at component {cid}: 30-day failure risk "
             f"{float(row.risk_probability):.1%} ({row.risk_band}), expected loss "
             f"{inr(row.expected_loss_inr)}. Answer about this component.",
-            "e.g. Which procedure fixes this, and what part and lead time does it need?",
         )
 
         series = _run(
@@ -1132,3 +1221,8 @@ with t_audit:
         k2.metric("Applied", int((aud["outcome"] == "APPLIED").sum()))
         k3.metric("Refused", int((aud["outcome"] == "REFUSED").sum()))
         st.dataframe(aud, hide_index=True, width="stretch")
+
+# --------------------------------------------------------------------------- assistant
+# Last, so every tab has registered its selection. Draws into the sidebar slot.
+with assistant_slot:
+    _assistant()
