@@ -22,6 +22,7 @@ import json
 import os
 import re
 import uuid
+from contextlib import contextmanager
 
 import altair as alt
 import pandas as pd
@@ -125,6 +126,27 @@ def _show(result: dict) -> None:
         st.error(f"**Refused.** {msg}", icon=":material/block:")
 
 
+def _short(exc: BaseException) -> str:
+    """One line of an error for a human: no traceback, no SQL, no HTML."""
+    first = (str(exc).strip().splitlines() or [type(exc).__name__])[-1]
+    return first[:200]
+
+
+@contextmanager
+def _degrade(what: str):
+    """Contain a failure to the section it happened in (T-45).
+
+    A failed read becomes one readable message and the rest of the page keeps
+    working. Streamlit's own rerun/stop signals are BaseException, not
+    Exception, so st.rerun() still passes straight through.
+    """
+    try:
+        yield
+    except Exception as exc:  # shown, never swallowed
+        st.error(f"**{what} is unavailable right now.** {_short(exc)}", icon=":material/cloud_off:")
+        st.caption("Other tabs keep working. The failed query is in Snowflake's query history.")
+
+
 def _ask_agent(messages: list[dict]) -> dict:
     """One non-streaming run of the Cortex Agent over a whole conversation (FR-48).
 
@@ -151,7 +173,13 @@ def _ask_agent(messages: list[dict]) -> dict:
         )
         .collect()[0]
     )
-    return json.loads(row[0]) if isinstance(row[0], str) else dict(row[0])
+    answer = json.loads(row[0]) if isinstance(row[0], str) else dict(row[0])
+    # DATA_AGENT_RUN does not raise for a missing agent or a denied role: it
+    # returns {"code", "message"} with no content. Surface it as the failure it is,
+    # rather than letting it render as an empty, "unsupported" answer.
+    if "content" not in answer and answer.get("code"):
+        raise RuntimeError(f"{answer.get('message', 'agent error')} (code {answer['code']})")
+    return answer
 
 
 def _parse_answer(answer: dict) -> dict:
@@ -311,16 +339,26 @@ def inr(x) -> str:
 
 
 # --------------------------------------------------------------------------- frame
-asof = _run(f"select as_of_date, data_end_date, horizon_days from {q('ML.V_SCORING_ASOF')}")
-as_of = asof.iloc[0]["as_of_date"] if not asof.empty else None
-funnel = _run(f"select * from {q('ENGINE.ENG_ALARM_FUNNEL')}")
-fleet = _run(
-    f"""select count(*) as turbines, count(distinct site_code) as sites
-        from {q("SERVING.MET_AVAILABILITY_CONTRACTUAL")}"""
-)
-site_list = _run(f"select distinct site_code from {q('ENGINE.ENG_INCIDENT')} order by site_code")[
-    "site_code"
-].tolist()
+# Every tab needs these. If they fail there is no page to degrade to, so say so
+# once, plainly, and stop (T-45).
+try:
+    asof = _run(f"select as_of_date, data_end_date, horizon_days from {q('ML.V_SCORING_ASOF')}")
+    as_of = asof.iloc[0]["as_of_date"] if not asof.empty else None
+    funnel = _run(f"select * from {q('ENGINE.ENG_ALARM_FUNNEL')}")
+    fleet = _run(
+        f"""select count(*) as turbines, count(distinct site_code) as sites
+            from {q("SERVING.MET_AVAILABILITY_CONTRACTUAL")}"""
+    )
+    site_list = _run(
+        f"select distinct site_code from {q('ENGINE.ENG_INCIDENT')} order by site_code"
+    )["site_code"].tolist()
+except Exception as exc:
+    st.error(
+        f"**The command center cannot reach its data right now.** {_short(exc)}",
+        icon=":material/cloud_off:",
+    )
+    st.caption("Check the connection and that the stack is deployed (`just verify`).")
+    st.stop()
 SEVERITIES = ["TRIP", "ALARM", "WARNING"]
 
 
@@ -406,7 +444,7 @@ FILTER_SQL = """site_code in (select value::varchar from table(flatten(parse_jso
                     or coalesce(component_id, '') ilike ?)"""
 
 # --------------------------------------------------------------------------- alarms
-with t_alarms:
+with t_alarms, _degrade("The alarm queue"):
     if funnel.empty:
         st.warning("The alarm engine has not been built. Run `just deploy-engine`.")
     else:
@@ -703,7 +741,7 @@ with t_alarms:
                         )
 
 # --------------------------------------------------------------------------- triage
-with t_triage:
+with t_triage, _degrade("Risk triage"):
     ranked = _run(
         f"""select money_rank, probability_rank, component_id, turbine_id, site_code,
                    component_class_name, risk_probability, risk_band, anomaly_flag,
@@ -999,7 +1037,7 @@ with t_triage:
             st.dataframe(cand, hide_index=True, width="stretch", height=300)
 
 # --------------------------------------------------------------------------- model
-with t_model:
+with t_model, _degrade("The model evaluation"):
     m = _run(
         f"""select m.metric_scope, m.metric_name, m.metric_value, m.detail, r.run_id, r.trained_at
             from {q("OPS.ML_METRIC")} m
@@ -1079,7 +1117,7 @@ with t_model:
             )
 
 # --------------------------------------------------------------------------- fleet
-with t_fleet:
+with t_fleet, _degrade("Fleet & contracts"):
     ld = _run(
         f"select * from {q('SERVING.MET_LD_EXPOSURE')} order by ld_exposure_run_rate_inr desc"
     )
@@ -1197,7 +1235,7 @@ with t_fleet:
         )
 
 # --------------------------------------------------------------------------- audit
-with t_audit:
+with t_audit, _degrade("The audit trail"):
     st.subheader("Who decided what, when, and on what evidence")
     st.caption(
         "Every request to the ACTION procedures is appended here **before** anything "
@@ -1224,5 +1262,5 @@ with t_audit:
 
 # --------------------------------------------------------------------------- assistant
 # Last, so every tab has registered its selection. Draws into the sidebar slot.
-with assistant_slot:
+with assistant_slot, _degrade("The assistant"):
     _assistant()

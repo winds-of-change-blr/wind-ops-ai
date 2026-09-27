@@ -521,6 +521,15 @@ seed history="183" seed_value="VWS-2026" damage="1.8" share="0.16" interval="10"
         -D "interval_min={{interval}}"
     printf '\ngeneration complete. Run `just verify`.\n'
 
+# Adversarial + metric-parity suite for the agent, run as WOA_RMC (T-46, T-49,
+# T-71, T-24 agent leg). Once per milestone, not per change (Q-62): each probe
+# is a model call. Exits non-zero on a write, a non-read tool, an invented id,
+# or a figure that disagrees with the metric views. Behaviour is read from OUT.
+[doc('Adversarial + parity suite for the agent, as WOA_RMC. Once per milestone')]
+[group('snowflake')]
+agent-suite OUT="agent_adversarial.json": _resolve-db
+    WOA_DATABASE={{database}} uv run --with snowflake-snowpark-python python scripts/agent_adversarial.py "{{OUT}}"
+
 # Regenerate the results summary from OPS. Never hand-written (T-92, T-95).
 [doc('Regenerate the results summary from OPS. Never hand-written')]
 [group('snowflake')]
