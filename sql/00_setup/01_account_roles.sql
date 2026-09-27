@@ -87,6 +87,12 @@ grant role WOA_APP to role WOA_RMC;
 grant role WOA_EXEC to role WOA_ADMIN;
 grant role WOA_TECH to role WOA_ADMIN;
 
+-- The app runs as its owner, WOA_ADMIN. Without READ SESSION, CURRENT_USER()
+-- returns NULL inside Streamlit in Snowflake, so every ACTION procedure fails
+-- closed on AUD_ACTION.ACTOR_USER (NOT NULL) and no approval can be recorded.
+-- READ SESSION only exposes the viewer's session context; it grants no data.
+grant read session on account to role WOA_ADMIN;
+
 -- --- what this file must never do -------------------------------------------
 -- No GRANT ... TO ROLE PUBLIC   (reference-solution defect G-11)
 -- No ALTER ACCOUNT              (04-code.md §6 absolute rule 3)
