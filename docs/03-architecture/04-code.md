@@ -14,8 +14,7 @@
 
 | Name | Purpose | Who writes |
 | --- | --- | --- |
-| `WIND_OPS_AI` | The shared build. The demo runs from here | Setup and pipelines only |
-| `WIND_OPS_AI_DEV_<INITIALS>` | Personal clone per developer — `..._NK`, `..._JP`, `..._SA` | That developer |
+| `WIND_OPS_AI` | The one team database on `JKDRJBB-MW27072`. The demo runs from here | The recipes, as `WOA_ADMIN` |
 
 **Never develop directly in `WIND_OPS_AI`.** Clone it, work, then promote by re-running the
 setup scripts against the shared database. Zero-copy clone makes this cheap, which matters against
@@ -137,7 +136,7 @@ session whose **default** role is `WOA_SCHEDULER`. This is a **D1 decision**
 | `WOA_EXEC` | `SELECT` on `SERVING` only | Component-level detail, engine internals |
 | `WOA_TECH` | `SELECT` on the job-pack view only | Everything else |
 | `WOA_SCHEDULER` | Runs the daily automation. `SELECT` on `CURATED`, `ML`, `SERVING`, `ENGINE`; `INSERT` on score, suggestion and digest tables in `ML`/`ENGINE`/`OPS` | **Everything on `ACTION`.** It refreshes; it never applies |
-| `WOA_ENGINEER` | `CREATE` in a personal clone | Any grant on `WIND_OPS_AI` |
+| `WOA_ENGINEER` | Nothing today (personal clones retired 2026-09-27); kept so the role hierarchy is unchanged | Any grant on `WIND_OPS_AI` |
 
 **Absolute rules** (AGENTS.md rule 6, `NFR-3`):
 

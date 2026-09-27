@@ -18,7 +18,6 @@ stage; the `1x` files run as `WOA_ADMIN` and hold no account-level privilege.
 | `03_account_database.sql` | `ACCOUNTADMIN` | The database, then hands ownership to `WOA_ADMIN` |
 | `10_schemas.sql` | `WOA_ADMIN` | The ten schemas; drops the auto-created `PUBLIC` |
 | `11_grants.sql` | `WOA_ADMIN` | The least-privilege read matrix |
-| `12_grants_dev.sql` | `WOA_ADMIN` | `WOA_ENGINEER` build rights. **`env=dev` only** |
 
 Teardown is [`../90_teardown/`](../90_teardown/), which reverses this exactly.
 
@@ -27,7 +26,7 @@ Teardown is [`../90_teardown/`](../90_teardown/), which reverses this exactly.
 Every file that names the database takes one parameter, `database`:
 
 ```bash
-snow sql -f sql/00_setup/03_account_database.sql -D "database=WIND_OPS_AI_DEV_JP"
+snow sql -f sql/00_setup/03_account_database.sql -D "database=WIND_OPS_AI"
 ```
 
 `NFR-6` forbids a hardcoded database name. `snow sql` renders `<% database %>`

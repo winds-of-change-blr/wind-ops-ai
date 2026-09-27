@@ -32,8 +32,7 @@ Verified by direct execution on 2026-09-21, not read from documentation.
 
 | Environment | Database | Purpose | Who |
 | --- | --- | --- | --- |
-| Personal | `WIND_OPS_AI_DEV_NK` / `_JP` / `_SA` | All development. Zero-copy clone of shared | Each developer |
-| Shared | `WIND_OPS_AI` | Integration and **the demo runs from here** | `WOA_ADMIN` via scripts |
+| Team | `WIND_OPS_AI` on `JKDRJBB-MW27072` | All development, integration, and **the demo runs from here** | Every developer, via the recipes as `WOA_ADMIN` |
 
 There is no separate production. With 15 days and a trial account, a third environment would cost
 more than it protects.
@@ -80,7 +79,6 @@ non-zero until implemented (`US-44`).
 | `just deploy-action` | `50_action` (tables, approval procedures, grants, **`04_planning_procedures`** accept/reject a schedule), gated by `15_quality/06` and `08` (planning, `T-71`/`T-31` gating) and the `T-33`/`T-47` role checks |
 | `just deploy` | The whole chain in dependency order — foundation → data → seed → ml → engine (incl. `30_serve/03` energy and OEE) → agent (incl. the numbers gate) → action → app — then `verify`. `T-52` ran it twice into a clean database |
 | `just results` | Writes `docs/08-delivery/results.md` from `OPS` and the metric views (`T-92`, `T-95`). Never edit that file by hand |
-| `just teardown-db <name>` | Drops one personal database only; leaves the shared roles and warehouses (unlike `just teardown`) |
 | `just deploy-app` | `app` |
 | `just deploy` | All of the above in dependency order, then `just verify` |
 | `just update` | Only what changed. **Never drops or recreates anything holding rows** |
@@ -90,7 +88,8 @@ non-zero until implemented (`US-44`).
 | `just teardown` | §5 below |
 | `just cost` | §6 below, both credit sources summed |
 
-`env=dev` (default) targets `WIND_OPS_AI_DEV_<INITIALS>`; `env=shared` must be typed deliberately.
+Every recipe targets `WIND_OPS_AI`; `_resolve-db` refuses any account other than `JKDRJBB-MW27072`.
+Personal clones (`WIND_OPS_AI_DEV_<INITIALS>`) were retired on 2026-09-27.
 
 ## 4. What setup must not do
 

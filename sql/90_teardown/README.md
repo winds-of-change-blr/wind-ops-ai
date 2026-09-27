@@ -3,8 +3,8 @@
 Implements `US-44`; proven by `T-52` ("setup succeeds twice in a row in a clean
 database, **and teardown removes everything**").
 
-Run it with `just teardown`. **Destructive.** The recipe refuses `env=shared`
-outright and requires you to type the database name by hand.
+Run it with `just teardown`. **Destructive.** It drops the team database the
+demo runs from, so the recipe requires you to type the database name **and** the account name.
 
 ## Run order
 
@@ -18,16 +18,15 @@ The reverse of setup. Order matters: objects before their owners.
 
 ## These files drop account-level objects
 
-Warehouses and roles are **not per-clone**. Every developer's
-`WIND_OPS_AI_DEV_<INITIALS>` shares `WOA_APP_WH`, `WOA_BUILD_WH` and the nine roles.
-Running teardown removes them for everyone in the account.
+Warehouses and roles are account-level. Running teardown removes `WOA_APP_WH`, `WOA_BUILD_WH`
+and the nine roles for everyone in the account, and the team database with them.
 
 That is deliberate. `T-52` requires teardown to remove *everything* setup created,
 and a judge running this in their own account must be left with no residue. The
 protection is in the recipe, not in the SQL:
 
-- `just teardown` **refuses `env=shared`** outright — no override flag
-- it requires the resolved database name to be **typed by hand** before proceeding
+- `_resolve-db` refuses any account other than `JKDRJBB-MW27072`; there is no override flag
+- it requires the database name and the account name to be **typed by hand** before proceeding
 
 Running these `.sql` files directly bypasses both. Don't.
 

@@ -4,7 +4,7 @@
 -- Implements : US-44, US-45  ·  satisfies NFR-3, NFR-6  ·  tested by T-50, T-52
 -- Authority  : docs/03-architecture/04-code.md §1, deployment.md §2, §4
 --
--- Parameter  : <% database %>   e.g. WIND_OPS_AI_DEV_JP  (dev) or WIND_OPS_AI (shared)
+-- Parameter  : <% database %>   always WIND_OPS_AI (the one team database)
 --
 -- NFR-6: the database name is ALWAYS a parameter, never a literal. `snow sql`
 -- renders <% database %> client-side and errors outright if the variable is not

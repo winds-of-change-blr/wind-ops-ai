@@ -164,7 +164,7 @@ for about two months.
   workstream.
 - **Let it use skills.** Describe the goal ("build a dynamic table pipeline") and CoCo loads
   the right bundled skill; name one with `/skill` when you want a specific one.
-- **Work in a personal clone** (`WIND_OPS_AI_DEV_<INITIALS>`), never the shared database.
+- **Deploy only through the recipes** to the team database `WIND_OPS_AI`; never hand-edit objects.
 - **Keep `AGENTS.md` short.** It loads every session; bloat costs you context and speed.
 - **Review before you commit.** The pre-commit hooks are the backstop, not the reviewer.
 - **Capture evidence as you go** — transcripts are much harder to reconstruct later:
