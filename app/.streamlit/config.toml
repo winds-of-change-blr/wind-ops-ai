@@ -14,3 +14,7 @@ showWidgetBorder = true
 [theme.sidebar]
 backgroundColor = "#232532"
 secondaryBackgroundColor = "#161826"
+
+# Backstop for T-45: an error that escapes every guard still shows no traceback.
+[client]
+showErrorDetails = "none"
