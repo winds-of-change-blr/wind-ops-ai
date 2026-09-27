@@ -43,6 +43,16 @@ grant usage on database <% database %> to role WOA_TECH;
 -- WOA_ADMIN owns the database and needs no grant on it.
 -- WOA_ENGINEER gets nothing: per 04-code.md §6 it has no grant on WIND_OPS_AI,
 -- and the personal clones it used to build in were retired on 2026-09-27.
+-- The retired 12_grants_dev.sql left CREATE, SELECT and future grants behind
+-- (WIND_OPS_AI began life as a clone), so they are revoked here. Idempotent.
+revoke all privileges on all schemas in database <% database %> from role WOA_ENGINEER;
+revoke all privileges on all tables in database <% database %> from role WOA_ENGINEER;
+revoke all privileges on all views in database <% database %> from role WOA_ENGINEER;
+revoke all privileges on all dynamic tables in database <% database %> from role WOA_ENGINEER;
+revoke select on future tables in database <% database %> from role WOA_ENGINEER;
+revoke select on future views in database <% database %> from role WOA_ENGINEER;
+revoke select on future dynamic tables in database <% database %> from role WOA_ENGINEER;
+revoke usage on database <% database %> from role WOA_ENGINEER;
 
 -- =============================================================================
 -- 2. WOA_APP — the application runtime

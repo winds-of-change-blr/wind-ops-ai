@@ -169,7 +169,7 @@ deploy-foundation: _resolve-db
     printf 'connection : %s\n\n' "{{connection}}"
 
     for f in 01_account_roles 02_account_warehouses 03_account_database \
-             10_schemas 11_grants; do
+             04_snowflake_intelligence 10_schemas 11_grants; do
         printf '\n=== %s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/00_setup/${f}.sql" -D "database={{database}}"
     done
@@ -316,7 +316,7 @@ deploy-agent: _resolve-db
         | {{snow_sql}} --stdin
 
     printf '\n=== search service, agent, G3 assertions ===\n'
-    for f in 60_docs/02_search_service 60_docs/03_part_procedure 70_agent/01_agent 15_quality/05_g3_assertions 15_quality/07_numbers_assertions; do
+    for f in 60_docs/02_search_service 60_docs/03_part_procedure 70_agent/01_agent 70_agent/02_agent_access 15_quality/05_g3_assertions 15_quality/07_numbers_assertions; do
         printf '\n--- %s ---\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
     done

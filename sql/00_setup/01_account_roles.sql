@@ -82,6 +82,11 @@ grant role WOA_RMC to role WOA_ADMIN;
 grant role WOA_APP to role WOA_PLANNER;
 grant role WOA_APP to role WOA_RMC;
 
+-- App users may ask the agent (FR-48, FR-86). WOA_APP inherits the read-only
+-- WOA_AGENT, never the reverse: WOA_AGENT stays without ACTION (T-47, T-76),
+-- while WOA_RMC and WOA_PLANNER gain the agent's read grants.
+grant role WOA_AGENT to role WOA_APP;
+
 -- WOA_EXEC and WOA_TECH are deliberately NOT granted WOA_APP — see the note at
 -- the top of this file. They are administrable from WOA_ADMIN and nothing else.
 grant role WOA_EXEC to role WOA_ADMIN;

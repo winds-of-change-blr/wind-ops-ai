@@ -130,7 +130,7 @@ session whose **default** role is `WOA_SCHEDULER`. This is a **D1 decision**
 | --- | --- | --- |
 | `WOA_ADMIN` | Ownership of the database and its schemas; runs setup | Account-level privileges |
 | `WOA_APP` | `SELECT` on `SERVING`, `ENGINE`, `ML`, `CURATED`; `USAGE` on `SP_APPROVE_*` | Direct DML on `ACTION` tables — writes only via procedure |
-| `WOA_AGENT` | `SELECT` on `SERVING`, `ENGINE`; `USAGE` on the search service and semantic view | **Everything on `ACTION`.** No write anywhere |
+| `WOA_AGENT` | `SELECT` on `SERVING`, `ENGINE` and the semantic view; `SELECT` on `RAW.DIM_SITE` and `RAW.DIM_TURBINE` only (the semantic view joins them); `USAGE` on the search service and the agent; `READ` on the docs stage. Granted to `WOA_APP`, so `WOA_RMC` and `WOA_PLANNER` can use the agent in Snowflake Intelligence | **Everything on `ACTION`.** No write anywhere |
 | `WOA_PLANNER` | `WOA_APP` plus the approval procedure | — |
 | `WOA_RMC` | `WOA_APP` plus the suppression procedure | Approval of work orders |
 | `WOA_EXEC` | `SELECT` on `SERVING` only | Component-level detail, engine internals |
