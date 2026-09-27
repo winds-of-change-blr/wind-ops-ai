@@ -17,7 +17,8 @@ stage; the `1x` files run as `WOA_ADMIN` and hold no account-level privilege.
 | `02_account_warehouses.sql` | `ACCOUNTADMIN` | `WOA_APP_WH`, `WOA_BUILD_WH`, and their `USAGE` grants |
 | `03_account_database.sql` | `ACCOUNTADMIN` | The database, then hands ownership to `WOA_ADMIN` |
 | `10_schemas.sql` | `WOA_ADMIN` | The ten schemas; drops the auto-created `PUBLIC` |
-| `11_grants.sql` | `WOA_ADMIN` | The least-privilege read matrix |
+| `04_snowflake_intelligence.sql` | `ACCOUNTADMIN` | The account's Snowflake Intelligence object (IF NOT EXISTS); MODIFY to `WOA_ADMIN`, USAGE to `WOA_APP` |
+| `11_grants.sql` | `WOA_ADMIN` | The least-privilege read matrix; revokes the retired `WOA_ENGINEER` grants |
 
 Teardown is [`../90_teardown/`](../90_teardown/), which reverses this exactly.
 

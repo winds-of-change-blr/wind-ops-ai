@@ -123,6 +123,94 @@ def _show(result: dict) -> None:
         st.error(f"**Refused.** {msg}", icon=":material/block:")
 
 
+def _ask_agent(prompt: str) -> dict:
+    """One non-streaming run of the Cortex Agent (FR-48).
+
+    The agent has only read tools (T-48), so this cannot change anything. The
+    agent name and the whole request body are bound, never interpolated.
+    """
+    body = json.dumps(
+        {
+            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+            "stream": False,
+        }
+    )
+    row = (
+        _conn()
+        .session()
+        .sql(
+            "select snowflake.cortex.data_agent_run(?, ?) as r",
+            params=[q("GEN.WOA_OPS_AGENT"), body],
+        )
+        .collect()[0]
+    )
+    return json.loads(row[0]) if isinstance(row[0], str) else dict(row[0])
+
+
+def _ask_box(slot: str, context: str, placeholder: str) -> None:
+    """An ask box in context. The answer carries its figures or its citations.
+
+    `context` tells the agent what the user is looking at; the user's question
+    is appended to it. An answer with neither a data table nor a citation is
+    labelled as unsupported rather than passed off as grounded (FR-55).
+    """
+    key = f"answer::{slot}"
+    with st.form(f"ask::{slot}", border=False):
+        question = st.text_input("Ask the Wind Ops Assistant", placeholder=placeholder)
+        asked = st.form_submit_button("Ask", icon=":material/forum:")
+    if asked and question.strip():
+        with st.spinner(
+            "Asking the agent — it reads the semantic view and the maintenance documents…"
+        ):
+            try:
+                answer = _ask_agent(f"{context}\n\nQuestion: {question.strip()}")
+            except Exception as exc:  # shown, never swallowed
+                answer = {"error": str(exc)}
+        st.session_state[key] = (question.strip(), answer)
+    if key not in st.session_state:
+        return
+
+    asked_q, answer = st.session_state[key]
+    if "error" in answer:
+        st.error(f"The agent could not answer: {answer['error'][:300]}", icon=":material/error:")
+        return
+    parts = answer.get("content") or []
+    st.markdown(f"**Q:** {asked_q}")
+    # Streamlit reads `$…$` as LaTeX; escape it so figures render as written.
+    text = "\n\n".join(
+        p["text"].strip() for p in parts if p.get("type") == "text" and p.get("text")
+    )
+    st.markdown(text.replace("$", r"\$") or "_The agent returned no text._")
+
+    tables = [p["table"] for p in parts if p.get("type") == "table"]
+    for t in tables:
+        rs = t.get("result_set") or {}
+        cols = [c["name"].lower() for c in (rs.get("resultSetMetaData") or {}).get("rowType", [])]
+        if cols:
+            st.caption(t.get("title") or "From the fleet data")
+            st.dataframe(
+                pd.DataFrame(rs.get("data") or [], columns=cols), hide_index=True, width="stretch"
+            )
+
+    cites: dict[str, dict] = {}
+    for p in parts:
+        for a in p.get("annotations") or []:
+            if a.get("type") == "cortex_search_citation":
+                cites.setdefault(a.get("doc_id") or a.get("doc_title"), a)
+    if cites:
+        with st.expander(
+            f"Sources — {len(cites)} maintenance document section(s)", icon=":material/menu_book:"
+        ):
+            for c in cites.values():
+                st.markdown(f"**{c.get('doc_title')}** · `{c.get('relative_path')}`")
+                st.caption((c.get("text") or "")[:400])
+    elif not tables:
+        st.warning(
+            "No data table and no document citation came back — treat this answer as unsupported.",
+            icon=":material/help:",
+        )
+
+
 def inr(x) -> str:
     if x is None or pd.isna(x):
         return "—"
@@ -429,6 +517,15 @@ with t_alarms:
                         "Measured against reference. The four channels ADR-0017 weighs, "
                         "stored so a human can disagree (T-68)."
                     )
+                _ask_box(
+                    f"incident::{iid}",
+                    f"An RMC engineer is looking at alarm incident {iid}: {d['alarm_code']} "
+                    f"({d['alarm_name']}) on turbine {d['turbine_id']}, component "
+                    f"{d['component_id'] or 'unknown'}, severity {d['severity']}, started "
+                    f"{d['incident_start']}, engine class {d['incident_class']}. "
+                    "Answer about this incident and this turbine.",
+                    "e.g. What does this alarm usually mean, and what is the procedure?",
+                )
 
             with right.container(border=True):
                 st.markdown("**Suppress this incident**")
@@ -608,6 +705,13 @@ with t_triage:
                 f"Importance method: `{drivers.iloc[0]['importance_method']}` — a train-split "
                 "standardised difference, not a per-prediction attribution (I-8)."
             )
+        _ask_box(
+            f"component::{cid}",
+            f"A reliability engineer is looking at component {cid}: 30-day failure risk "
+            f"{float(row.risk_probability):.1%} ({row.risk_band}), expected loss "
+            f"{inr(row.expected_loss_inr)}. Answer about this component.",
+            "e.g. Which procedure fixes this, and what part and lead time does it need?",
+        )
 
         series = _run(
             f"""select scored_date, primary_mean, expected_mean,

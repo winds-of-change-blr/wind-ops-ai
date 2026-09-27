@@ -34,6 +34,9 @@ use warehouse WOA_BUILD_WH;
 create or replace agent GEN.WOA_OPS_AGENT
   comment = 'Wind Ops AI assistant: answers fleet-risk, availability, LD and alarm questions from the semantic view, and maintenance-procedure questions from the document search, with citations. Read-only. SYNTHETIC DATA.'
   profile = '{"display_name": "Wind Ops Assistant"}'
+  -- Keeps the USAGE grants from 70_agent/02 across a redeploy. This account
+  -- accepts COPY GRANTS after the properties, not straight after the name.
+  copy grants
   from specification
 $$
 models:

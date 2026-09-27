@@ -17,10 +17,12 @@
 -- later script adds an object.
 --
 -- WHAT DROP DATABASE DOES **NOT** REACH — and must be added here as it is built:
---   * the Cortex Agent. It lives in SNOWFLAKE_INTELLIGENCE.AGENTS, outside our
---     database (04-code.md §2), so 70_agent must add an explicit drop here.
+--   * the Snowflake Intelligence object (00_setup/04). It is account-level
+--     and may list other teams' agents, so our agent is removed from it and
+--     the object is dropped ONLY if nothing else is left in it. The agent
+--     itself lives in <% database %>.GEN and goes with the database.
 --   * compute pools, image repositories, notification integrations — all
---     account-level. None exist at foundation.
+--     account-level. None exist.
 -- Until those exist, this file is deliberately short. See ../90_teardown/README.md.
 --
 -- Idempotent: IF EXISTS, so running teardown twice is not an error. T-52 needs a
@@ -33,5 +35,34 @@
 -- =============================================================================
 
 use role ACCOUNTADMIN;
+
+execute immediate $$
+begin
+    show snowflake intelligences like 'SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT';
+    if ((select count(*) from table(result_scan(last_query_id()))) = 0) then
+        return 'no Snowflake Intelligence object';
+    end if;
+    show agents in snowflake intelligence SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
+    let rs resultset := (select count_if("database_name" = '<% database %>') as ours,
+                                count_if("database_name" <> '<% database %>') as others
+                         from table(result_scan(last_query_id())));
+    let cur cursor for rs;
+    let ours integer := 0;
+    let others integer := 0;
+    for rw in cur do
+        ours := rw.ours;
+        others := rw.others;
+    end for;
+    if (ours > 0) then
+        alter snowflake intelligence SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT
+            drop agent <% database %>.GEN.WOA_OPS_AGENT;
+    end if;
+    if (others = 0) then
+        drop snowflake intelligence if exists SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
+        return 'Snowflake Intelligence object dropped';
+    end if;
+    return 'agent removed; object kept for ' || others || ' other agent(s)';
+end;
+$$;
 
 drop database if exists <% database %>;

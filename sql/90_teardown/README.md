@@ -43,7 +43,7 @@ are built:
 
 | Object | Lives in | Added by |
 | --- | --- | --- |
-| The Cortex Agent | `SNOWFLAKE_INTELLIGENCE.AGENTS` — platform-mandated, not our database | `70_agent` |
+| The Snowflake Intelligence object | Account level. Our agent is removed from it; the object is dropped only if no other agent is listed | `00_setup/04`, `70_agent/02` |
 | Compute pools, image repositories | Account level | Only if SPCS is ever used (`ADR-0020` says not) |
 | Notification integrations | Account level | `M11`, if it survives the cut order |
 

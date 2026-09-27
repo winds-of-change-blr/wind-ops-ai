@@ -30,6 +30,8 @@ using (
     select * from values
         ('DQ-AGENT-READ-ONLY',     'T-48', 'G4', 'The live agent has only read-only tools',
             'An agent that can call a write procedure and so route around approval', true),
+        ('DQ-AGENT-REACHABLE',     'T-84', 'G4', 'RMC and planning users can open the agent in Snowflake Intelligence',
+         'An agent that exists but that nobody it was built for can reach', true),
         ('DQ-SV-DESCRIBED',        'T-42', 'G5', 'Every semantic-view table, fact, dimension and metric has a description',
             'Cortex Analyst guessing what a column means', false),
         ('DQ-SV-SAMPLES-REAL',     'T-42', 'G5', 'Every example value quoted in a description exists in the data',
@@ -140,6 +142,30 @@ begin
                      'PT-[A-Z]{3}-[A-Z]+(-[A-Z]+)*|(SA|CM)-[A-Z]{2}-[0-9]{3}')) f
         )
     );
+
+    -- T-84: the agent is reachable by the people it is for (FR-86). Three
+    -- links, each of which silently hides it when missing: the Snowflake
+    -- Intelligence list, USAGE on the agent, and WOA_APP inheriting WOA_AGENT.
+    let listed integer := 0;
+    let usage_ok integer := 0;
+    let inherits integer := 0;
+    show agents in snowflake intelligence SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
+    listed := (select count(*) from table(result_scan(last_query_id()))
+               where "database_name" = current_database() and "schema_name" = 'GEN'
+                 and "name" = 'WOA_OPS_AGENT');
+    show grants on agent GEN.WOA_OPS_AGENT;
+    usage_ok := (select count(*) from table(result_scan(last_query_id()))
+                 where "privilege" = 'USAGE' and "grantee_name" = 'WOA_AGENT');
+    show grants to role WOA_APP;
+    inherits := (select count(*) from table(result_scan(last_query_id()))
+                 where "granted_on" = 'ROLE' and "name" = 'WOA_AGENT');
+    insert into OPS.DQ_RESULT (run_id, assertion_id, test_id, run_at, passed, measured_value, threshold_value, detail)
+    select :run_id, 'DQ-AGENT-REACHABLE', 'T-84', current_timestamp()::timestamp_ntz,
+           :listed > 0 and :usage_ok > 0 and :inherits > 0,
+           iff(:listed > 0, 0, 1) + iff(:usage_ok > 0, 0, 1) + iff(:inherits > 0, 0, 1), 0,
+           'listed in Snowflake Intelligence: ' || iff(:listed > 0, 'yes', 'NO')
+           || '; USAGE to WOA_AGENT: ' || iff(:usage_ok > 0, 'yes', 'NO')
+           || '; WOA_APP inherits WOA_AGENT: ' || iff(:inherits > 0, 'yes', 'NO');
 
     return 'G3 quality run ' || :run_id || ' complete';
 end;
