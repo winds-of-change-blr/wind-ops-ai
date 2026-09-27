@@ -1,0 +1,16 @@
+# Command Center theme (NK's redesign, app/Wind Ops Command Center.html).
+# Staged beside streamlit_app.py by `just deploy-app`. No custom fonts: the
+# warehouse runtime cannot fetch them, and bundling them is not worth 1 MB.
+[theme]
+base = "dark"
+primaryColor = "#9184d9"
+backgroundColor = "#161826"
+secondaryBackgroundColor = "#232532"
+textColor = "#e9e9ed"
+borderColor = "#3a3c4a"
+baseRadius = "8px"
+showWidgetBorder = true
+
+[theme.sidebar]
+backgroundColor = "#232532"
+secondaryBackgroundColor = "#161826"
