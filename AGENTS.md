@@ -142,6 +142,13 @@ and unreproducible by a judge.
 
 - **`just target` before anything.** It prints the database and connection a run will hit. If that is
   not what you expected, stop.
+- **Deploy to the team account `JKDRJBB-MW27072` — every developer, every time.** That is the account
+  the demo and the judges use; a stack that exists only in someone's trial account is not deployed.
+  Before any recipe, `snow connection test` must report account `JKDRJBB-MW27072`: set
+  `SNOWFLAKE_DEFAULT_CONNECTION_NAME` to your connection for it, and let `just target` confirm it.
+  Personal or trial accounts (for example `BGTCHIX-UZ86048`) are for experiments only. Nothing built
+  there counts as done until it has been redeployed to `JKDRJBB-MW27072` through the same recipes and
+  `just verify` passes there. Evidence and `STATE.md` §5 record the account a result came from.
 - **`env=dev` is the default** and resolves to your personal clone `WIND_OPS_AI_DEV_<INITIALS>`
   (set `git config user.initials nk` once). `env=shared` targets the team database and must be typed
   deliberately, every time.
