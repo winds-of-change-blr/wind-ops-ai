@@ -1,7 +1,7 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-09-27 · **by:** NK · **CoCo session:** `04d1ee7a-0e99-44de-afb6-40f838e591e6`
-> **Plan day:** D9 · **Deployment: one team database `WIND_OPS_AI` on `JKDRJBB-MW27072`** (no personal clones; `just` refuses any other account) · **Branch:** `main`
+> **Last updated:** 2026-09-29 · **by:** JP · **CoCo session:** `1a36e460-4f53-47db-bfc8-052cc16e89c0`
+> **Plan day:** D12 · **Deployment: one team database `WIND_OPS_AI` on `JKDRJBB-MW27072`** (no personal clones; `just` refuses any other account) · **Branch:** `main`
 > **The app exists:** `WIND_OPS_AI.APP.WOA_COMMAND_CENTER` on `JKDRJBB-MW27072` — Snowsight › Projects › Streamlit
 > **The agent exists:** `WIND_OPS_AI.GEN.WOA_OPS_AGENT` — in Snowflake Intelligence (ai.snowflake.com) for `WOA_RMC`/`WOA_PLANNER`, and as the app's ask box
 
@@ -36,23 +36,20 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| JP | D10 incident evidence: `FR-63`/`ADR-0017` evidence rows (`T-68`), `FR-64`, `UNDETERMINED` never hidden and rate published (`T-61`) | `feat/jp/incident-evidence` | 2026-09-26 | Built and verified on `WIND_OPS_AI_DEV_SB` (`JKDRJBB-MW27072`); NK's window-engine row cleared — PR #12 merged |
+| JP | Submission surface: README (`T-89`), walkthrough script (`T-90`), as-built criteria map (`T-93`), licences (`T-59`), `execution/01` | `docs/jp/submission-surface` | 2026-09-29 | Team DB redeployed 2026-09-29 (`T-11` freshness had failed); 73/73 |
 
 ## 3. Next actions, in order
 
-Do not re-derive the plan here — just the next things, each with the ID that proves it done. **These three
-are independent and should run in parallel across the team.**
+Do not re-derive the plan here — just the next things, each with the ID that proves it done. The agent
+is in the app (NK, #22) and `testing/01` exists (NK, #23); README, walkthrough script, `T-93` map and
+`execution/01` are on `docs/jp/submission-surface`. **Submission is Sun 4 Oct; aim for Fri 2 Oct.**
 
-1. **Submission surface** — judge-facing README (`T-89`: a stranger reaches a working system from it), 2-minute
-   walkthrough (`T-90`), deck, `T-93` criteria map. **Build `results.md` first** with `just results` and quote
-   it, never retype. Demo beats: a protection trip refused; one work order however many clicks; the three
-   yaw-misaligned turbines that availability calls healthy (OEE tab); **the TN-TVL crane campaign, and the
-   MH-STR bearing the engine refuses to schedule because the part lands after the horizon** (Planning); the
-   *Audit* tab.
-2. **Put the agent in the app** — an *Ask* tab calling `GEN.WOA_OPS_AGENT`, showing citations.
-3. **Execution and testing evidence** — `execution/01` (an end-to-end run through `just`) and `testing/01`
-   (adversarial agent probes `T-43`…`T-46`, including asking the agent to invent a slot for `T-71`'s adversarial
-   half; degraded modes `T-45`, `T-98`).
+1. **The deck** (NK) — [demo-and-submission §3](docs/08-delivery/demo-and-submission.md#3-deck-outline);
+   quote [`results.md`](docs/08-delivery/results.md), never retype.
+2. **Record the walkthrough** (`T-90`) from [`walkthrough.md`](docs/08-delivery/walkthrough.md).
+3. **`T-89`** — someone who did not write the README follows it from a clean clone into their own
+   account (`WOA_ACCOUNT=<ORG>-<ACCOUNT>`).
+4. **Re-run `just deploy` within 48 h of the demo** — `T-11` freshness fails once the data is 2 days old.
 
 Then: verified queries for `VQ-1`, `VQ-4`, `VQ-5`, `VQ-7`,
 `VQ-8`; `T-74` incident decision paths; `T-73` free-text constraints; a scheduled task + digest (`T-76`, `T-77`);
@@ -195,7 +192,11 @@ ADR or RAID reference, that is a defect.
 
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/development/12-incident-evidence.md`](docs/06-coco/evidence/development/12-incident-evidence.md)
+[`docs/06-coco/evidence/execution/01-full-deploy-and-submission-surface.md`](docs/06-coco/evidence/execution/01-full-deploy-and-submission-surface.md)
+— `T-11` freshness failed on the team database; one `just deploy` (27 min) regenerated, retrained and
+rebuilt it, 73/73. Plus the judge-facing README, walkthrough script and as-built `T-93` map.
+
+Before that: [`development/12-incident-evidence.md`](docs/06-coco/evidence/development/12-incident-evidence.md)
 — ADR-0017's four evidence channels stored per incident (63,748 rows = 15,937 × 4), a single operator
 queue with `UNDETERMINED` ranked below actionable and never truncated silently, and `I-19` closed (2
 nuisance calls on a HIGH-risk turbine are now `UNDETERMINED`). `T-68` and `T-61` gating, every new

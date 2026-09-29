@@ -10,7 +10,11 @@ set unstable := true
 # There is ONE database, WIND_OPS_AI, on the team account JKDRJBB-MW27072, and
 # every developer deploys to it (AGENTS.md > Deployment). There are no personal
 # clones and no per-user suffix: `_resolve-db` refuses any other account.
-team_account := "JKDRJBB-MW27072"
+#
+# A judge or any other stranger deploying into their own account (T-89) opts in
+# explicitly with WOA_ACCOUNT=<ORG>-<ACCOUNT>; the guard still refuses a
+# connection that does not match it, so a wrong default can never deploy.
+team_account := env_var_or_default("WOA_ACCOUNT", "JKDRJBB-MW27072")
 
 # The Snowflake connection. `snow` picks up SNOWFLAKE_DEFAULT_CONNECTION_NAME from
 # the environment on its own, so recipes below deliberately do NOT pass

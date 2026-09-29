@@ -200,7 +200,28 @@ strongest claim to our weakest, and no other criterion compensates for 40%.
 Every criterion is touched, and the 40%-weighted one is touched twice — once as a number on screen,
 once as an architectural claim.
 
-## 6. Open questions
+## 6. As built — the `T-93` map
+
+Sections 1–5 are the plan. This is what exists on 2026-09-29: each criterion against the screen a
+judge can open, the artefact behind it, and the test that fails the build if it stops being true.
+Figures live in [`results.md`](results.md), never here.
+
+| Criterion | App moment ([walkthrough](walkthrough.md)) | Artefact | Proved by |
+| --- | --- | --- | --- |
+| `E1` Relevance | *Fleet & contracts*: availability against the 97% guarantee, LD exposure; *Risk triage*: ₹ expected loss | [company-profile](../01-business/company-profile.md), [business-case](../01-business/business-case.md), `SERVING.MET_LD_EXPOSURE` | `T-20`, `T-22` (LD hand-worked to ₹2.6 L) |
+| `E2` Technical execution | *Is the model real?*: model vs rule vs random on held-out data; *Alarms*: guard checklist | `ML.RISK_CLASSIFIER`, `OPS.ML_METRIC`, `ACTION.SP_APPROVE_SUPPRESSION` | `T-10` margin over the rule, `T-87`/`T-94` same run as displayed, `T-60` guards, `T-33`/`T-47` no agent writes |
+| `E3` Completeness | Alarms → Risk triage → evidence panel → work order → planning window → Audit, in one app | [dataflow-as-built](../03-architecture/dataflow-as-built.md) | `T-86` every alarm in exactly one incident, `T-71`/`T-31` windows re-derived from source |
+| `E4` CoCo lifecycle | — | [evidence/](../06-coco/evidence/README.md): planning, development 01–12, execution 01, testing 01 | Session IDs in `ACCOUNT_USAGE.CORTEX_CODE_*_USAGE_HISTORY` |
+| `E5` CoCo ingenuity | — | [`skills/`](../../skills), `just agent-suite`, [coco-usage-plan §4](../06-coco/coco-usage-plan.md#4-ingenuity--e5) | Testing evidence 01 (adversarial agent probes) |
+| `E6` Impact | *Risk triage*: expected loss covered by planned work, cranes saved | `ENGINE.ENG_WINDOW_CANDIDATE` | `T-75` impact reconciles |
+| `E7` Creativity | *Alarms*: **UNDETERMINED** with its published rate; compression beside real-failures-suppressed | `ENGINE.ENG_INCIDENT_EVIDENCE`, `ENGINE.ENG_OPERATOR_QUEUE` | `T-61`, `T-68`, `T-70` |
+| `E8` Design | The funnel; one "why" panel reused across alarms and risk; degraded states instead of tracebacks | `app/streamlit_app.py` | `T-45`/`T-98` degraded-mode drills (testing 01) |
+| `E9` Execution | *Audit* | [`results.md`](results.md) generated from `OPS`; [project-plan](project-plan.md); [README](../../README.md) | `T-92`, `T-95`, `T-89` |
+
+**Open against this map:** the deck and the recorded walkthrough (`T-90`) need a human; `T-89` needs
+someone who did not write the README to follow it from a clean clone.
+
+## 7. Open questions
 
 | ID | Question | Owner |
 | --- | --- | --- |
