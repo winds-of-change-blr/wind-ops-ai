@@ -524,7 +524,9 @@ if NAV == ALARMS:
                     help="Undetermined is published, not buried (T-61) — a rising rate means "
                     "the evidence base is degrading.",
                 )
-                st.caption(f"+ {int(r.undetermined):,} undetermined, ranked separately")
+                st.caption(
+                    f"+ {int(r.undetermined):,} undetermined (mixed evidence, never suppressible)"
+                )
                 st.progress(min(1.0, int(r.actionable) / max(int(r.raw_alarms), 1) * 10))
             # Compression and real-failures-suppressed are no longer displayed (product
             # decision, 2026-10-01); zero suppressed real failures is still enforced by
@@ -700,7 +702,9 @@ if NAV == ALARMS:
                 view = (
                     c_view.segmented_control(
                         "Show",
-                        ["Actionable", "Undetermined", "Nuisance"],
+                        # Undetermined has no tab (product decision, 2026-10-01);
+                        # its count and rate stay on the Actionable card.
+                        ["Actionable", "Nuisance"],
                         default="Actionable",
                         key="q_view",
                         label_visibility="collapsed",
@@ -728,10 +732,6 @@ if NAV == ALARMS:
                     "Actionable": (
                         f"of {int(r.actionable):,} actionable",
                         "Ranked first in the queue.",
-                    ),
-                    "Undetermined": (
-                        f"of {int(r.undetermined):,} undetermined",
-                        "Never hidden, never suppressible.",
                     ),
                     "Nuisance": (
                         f"of {int(r.nuisance):,} engine-classed nuisance",
