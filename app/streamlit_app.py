@@ -532,60 +532,6 @@ if NAV == ALARMS:
             # decision, 2026-10-01); zero suppressed real failures is still enforced by
             # the engine assertion T-70 on every `just verify`.
 
-            # ------------------------------------------------- 80:20 contributors
-            pareto = _run(
-                f"""select alarm_code, max(alarm_name) as alarm_name, count(*) as incidents
-                    from {q("ENGINE.ENG_INCIDENT")}
-                    where incident_class = 'ACTIONABLE' and {FILTER_SQL}
-                    group by alarm_code order by incidents desc, alarm_code""",
-                params=[sites_json, sev_json, "", "%", "%", "%", "%"],
-            )
-            if not pareto.empty:
-                total = float(pareto["incidents"].sum())
-                pareto["pct"] = pareto["incidents"] / total
-                pareto["cum_pct"] = pareto["pct"].cumsum()
-                n_codes = len(pareto)
-                # Smallest head that reaches 80% of actionable incidents.
-                k = int((pareto["cum_pct"] < 0.8).sum()) + 1
-                k = min(k, n_codes)
-                head = pareto.head(k).copy()
-                head.insert(0, "rank", [str(i) for i in range(1, k + 1)])
-                if k < n_codes:
-                    rest = pareto.iloc[k:]
-                    head.loc[len(head)] = {
-                        "rank": f"{k + 1}–{n_codes}",
-                        "alarm_code": "Others",
-                        "alarm_name": f"All remaining codes ({len(rest)} codes)",
-                        "incidents": float(rest["incidents"].sum()),
-                        "pct": float(rest["pct"].sum()),
-                        "cum_pct": 1.0,
-                    }
-                with st.container(border=True):
-                    st.markdown("**Top contributing components — the 80:20 view**")
-                    st.caption(
-                        "This information can help for parts stock maintenance. "
-                        f"Actionable incidents by alarm code. {filtered_note}"
-                    )
-                    st.dataframe(
-                        head,
-                        hide_index=True,
-                        width="stretch",
-                        column_config={
-                            "rank": st.column_config.TextColumn("Rank", width="small"),
-                            "alarm_code": st.column_config.TextColumn("Code"),
-                            "alarm_name": st.column_config.TextColumn("Name", width="large"),
-                            "incidents": st.column_config.NumberColumn("Incidents", format="%d"),
-                            "pct": st.column_config.NumberColumn("%", format="percent"),
-                            "cum_pct": st.column_config.ProgressColumn(
-                                "Cumulative %", format="percent", min_value=0.0, max_value=1.0
-                            ),
-                        },
-                    )
-                    st.caption(
-                        f"**{k} ({k / n_codes:.0%}) alarm codes out of {n_codes} generate "
-                        f"~{float(pareto['cum_pct'].iloc[k - 1]):.0%} of actionable incidents.**"
-                    )
-
             st.subheader("Incident queue")
             st.caption("Select a row to see why it was classed and whether it can be suppressed.")
 
@@ -933,6 +879,60 @@ if NAV == ALARMS:
                                 )
 
             _queue_section()
+
+            # ------------------------------------------------- 80:20 contributors
+            pareto = _run(
+                f"""select alarm_code, max(alarm_name) as alarm_name, count(*) as incidents
+                    from {q("ENGINE.ENG_INCIDENT")}
+                    where incident_class = 'ACTIONABLE' and {FILTER_SQL}
+                    group by alarm_code order by incidents desc, alarm_code""",
+                params=[sites_json, sev_json, "", "%", "%", "%", "%"],
+            )
+            if not pareto.empty:
+                total = float(pareto["incidents"].sum())
+                pareto["pct"] = pareto["incidents"] / total
+                pareto["cum_pct"] = pareto["pct"].cumsum()
+                n_codes = len(pareto)
+                # Smallest head that reaches 80% of actionable incidents.
+                k = int((pareto["cum_pct"] < 0.8).sum()) + 1
+                k = min(k, n_codes)
+                head = pareto.head(k).copy()
+                head.insert(0, "rank", [str(i) for i in range(1, k + 1)])
+                if k < n_codes:
+                    rest = pareto.iloc[k:]
+                    head.loc[len(head)] = {
+                        "rank": f"{k + 1}–{n_codes}",
+                        "alarm_code": "Others",
+                        "alarm_name": f"All remaining codes ({len(rest)} codes)",
+                        "incidents": float(rest["incidents"].sum()),
+                        "pct": float(rest["pct"].sum()),
+                        "cum_pct": 1.0,
+                    }
+                with st.container(border=True):
+                    st.markdown("**Top contributing components — the 80:20 view**")
+                    st.caption(
+                        "This information can help for parts stock maintenance. "
+                        f"Actionable incidents by alarm code. {filtered_note}"
+                    )
+                    st.dataframe(
+                        head,
+                        hide_index=True,
+                        width="stretch",
+                        column_config={
+                            "rank": st.column_config.TextColumn("Rank", width="small"),
+                            "alarm_code": st.column_config.TextColumn("Code"),
+                            "alarm_name": st.column_config.TextColumn("Name", width="large"),
+                            "incidents": st.column_config.NumberColumn("Incidents", format="%d"),
+                            "pct": st.column_config.NumberColumn("%", format="percent"),
+                            "cum_pct": st.column_config.ProgressColumn(
+                                "Cumulative %", format="percent", min_value=0.0, max_value=1.0
+                            ),
+                        },
+                    )
+                    st.caption(
+                        f"**{k} ({k / n_codes:.0%}) alarm codes out of {n_codes} generate "
+                        f"~{float(pareto['cum_pct'].iloc[k - 1]):.0%} of actionable incidents.**"
+                    )
 
 # --------------------------------------------------------------------------- triage
 if NAV == TRIAGE:
