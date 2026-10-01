@@ -410,28 +410,59 @@ filtered_note = (
     else f"Filtered to {len(sel_sites)} of {len(site_list)} sites."
 )
 
-st.title("Command Center")
-h1, h2 = st.columns([3, 2], vertical_alignment="center")
-h1.caption("Alarm triage, failure risk and model evidence for the Vayuveda fleet")
-with h2.container(horizontal=True, horizontal_alignment="right"):
-    st.badge("Synthetic data", icon=":material/science:", color="violet")
-    if as_of is not None:
-        st.badge(
-            f"Scored as of {as_of} · data ends {asof.iloc[0]['data_end_date']}",
-            icon=":material/event:",
-            color="gray",
-        )
-
-actionable_badge = f" · {int(funnel.iloc[0]['actionable']):,}" if not funnel.empty else ""
-t_alarms, t_triage, t_model, t_fleet, t_audit = st.tabs(
-    [
-        f":material/notifications: Alarms{actionable_badge}",
-        ":material/warning: Risk triage",
-        ":material/science: Is the model real?",
-        ":material/wind_power: Fleet & contracts",
-        ":material/history: Audit",
-    ]
+# Styling only: a sticky header holding the navigation, and one compact card
+# look shared by every metric tile, so the dashboard reads the same everywhere.
+st.markdown(
+    """<style>
+    .st-key-topnav { position: sticky; top: 3.75rem; z-index: 999;
+        background: var(--background-color, #fff); padding: 0.25rem 0 0.5rem;
+        border-bottom: 1px solid rgba(128,128,128,0.25); }
+    [data-testid="stMetricLabel"] p { font-size: 0.8rem; }
+    [data-testid="stMetricValue"] { font-size: 1.35rem; }
+    [data-testid="stMetricDelta"] { font-size: 0.75rem; }
+    </style>""",
+    unsafe_allow_html=True,
 )
+
+# Navigation is a session-state control, not st.tabs: st.tabs forgets the open
+# tab on every rerun, so the first click on any widget jumped back to Alarms.
+ALARMS, TRIAGE, FLEET, AUDIT, MODEL = (
+    "Alarms",
+    "Risk triage",
+    "Fleet & contracts",
+    "Audit",
+    "Is the model real?",
+)
+NAV_ICON = {
+    ALARMS: ":material/notifications:",
+    TRIAGE: ":material/warning:",
+    FLEET: ":material/wind_power:",
+    AUDIT: ":material/history:",
+    MODEL: ":material/science:",
+}
+actionable_badge = f" · {int(funnel.iloc[0]['actionable']):,}" if not funnel.empty else ""
+with st.container(key="topnav"):
+    h1, h2 = st.columns([3, 2], vertical_alignment="center")
+    h1.markdown("### Command Center")
+    with h2.container(horizontal=True, horizontal_alignment="right"):
+        st.badge("Synthetic data", icon=":material/science:", color="violet")
+        if as_of is not None:
+            st.badge(
+                f"Scored as of {as_of} · data ends {asof.iloc[0]['data_end_date']}",
+                icon=":material/event:",
+                color="gray",
+            )
+    NAV = (
+        st.segmented_control(
+            "Section",
+            list(NAV_ICON),
+            default=ALARMS,
+            key="nav",
+            label_visibility="collapsed",
+            format_func=lambda s: f"{NAV_ICON[s]} {s}" + (actionable_badge if s == ALARMS else ""),
+        )
+        or ALARMS
+    )
 
 VERDICT = {
     "SUPPORTS_ACTIONABLE": "Actionable",
@@ -444,119 +475,147 @@ FILTER_SQL = """site_code in (select value::varchar from table(flatten(parse_jso
                     or coalesce(component_id, '') ilike ?)"""
 
 # --------------------------------------------------------------------------- alarms
-with t_alarms, _degrade("The alarm queue"):
-    if funnel.empty:
-        st.warning("The alarm engine has not been built. Run `just deploy-engine`.")
-    else:
-        r = funnel.iloc[0]
-        queued = int(r.actionable) + int(r.undetermined)
-        st.subheader("A flood of alarms becomes a short, honest list")
-        st.caption("Whole scoring window · all sites (the funnel is not filtered)")
-        f1, f2, f3, f4 = st.columns(4)
-        with f1.container(border=True):
-            st.metric("1 · Raw alarms", f"{int(r.raw_alarms):,}")
-            st.caption("every code, every turbine")
-            st.progress(1.0)
-        with f2.container(border=True):
-            st.metric(
-                "2 · Incidents",
-                f"{int(r.incidents):,}",
-                f"{int(r.raw_alarms) / max(int(r.incidents), 1):.1f} : 1",
-                delta_color="off",
-            )
-            st.caption("grouped by asset + code")
-            st.progress(min(1.0, int(r.incidents) / max(int(r.raw_alarms), 1) * 10))
-        with f3.container(border=True):
-            st.metric(
-                "3 · In queue",
-                f"{queued:,}",
-                f"−{int(r.nuisance):,}",
-                delta_color="off",
-            )
-            st.caption("engine-classed nuisance removed")
-            st.progress(min(1.0, queued / max(int(r.raw_alarms), 1) * 10))
-        with f4.container(border=True):
-            st.metric("4 · Actionable", f"{int(r.actionable):,}")
-            st.caption(f"+ {int(r.undetermined):,} undetermined, ranked below")
-            st.progress(min(1.0, int(r.actionable) / max(int(r.raw_alarms), 1) * 10))
-        # The anti-gaming rule: compression and failures-suppressed, together (T-70).
-        g1, g2, g3 = st.columns(3)
-        g1.metric(
-            "Compression",
-            f"{r.compression_ratio} : 1",
-            help="Raw alarms per queued incident. Trivially achieved by suppressing "
-            "everything, so it is never shown without the next number.",
-            border=True,
-        )
-        g2.metric(
-            "Real failures suppressed",
-            int(r.real_failures_suppressed),
-            help="The number that must stay zero.",
-            border=True,
-        )
-        g3.metric(
-            "Undetermined rate",
-            f"{float(r.undetermined_rate):.1%}",
-            help="Published, not buried — a rising rate means the evidence base is degrading.",
-            border=True,
-        )
-
-        st.subheader("Incident queue")
-        st.caption("Select a row to see why it was classed and whether it can be suppressed.")
-        c_view, c_search = st.columns([1, 2], vertical_alignment="bottom")
-        view = c_view.segmented_control(
-            "Show",
-            ["Queue", "Nuisance"],
-            default="Queue",
-            key="q_view",
-            label_visibility="collapsed",
-        )
-        search = c_search.text_input(
-            "Search",
-            key="q_search",
-            placeholder="Turbine, alarm code, name or component",
-            label_visibility="collapsed",
-        )
-        like = f"%{(search or '').strip()}%"
-        fparams = [sites_json, sev_json, (search or "").strip(), like, like, like, like]
-        cols = """incident_id, incident_class, severity, alarm_name, alarm_code, turbine_id,
-                  site_code, component_id, incident_start, n_alarms, is_safety_critical,
-                  is_corroborated, is_elevated, all_auto_reset, class_reason"""
-        if (view or "Queue") == "Queue":
-            queue = _run(
-                f"""select queue_rank, {cols}, count(*) over () as n_match
-                    from {q("ENGINE.ENG_OPERATOR_QUEUE")}
-                    where {FILTER_SQL}
-                    order by queue_rank limit 200""",
-                params=fparams,
-            )
-            scope = f"of {queued:,} in the queue"
-            tail = "Undetermined ranks below actionable — never hidden, never suppressible."
+if NAV == ALARMS:
+    with _degrade("The alarm queue"):
+        if funnel.empty:
+            st.warning("The alarm engine has not been built. Run `just deploy-engine`.")
         else:
-            queue = _run(
-                f"""select row_number() over (order by incident_start desc) as queue_rank,
-                           {cols}, count(*) over () as n_match
+            r = funnel.iloc[0]
+            queued = int(r.actionable) + int(r.undetermined)
+            st.subheader("A flood of alarms becomes a short, honest list")
+            st.caption("Whole scoring window · all sites (the funnel is not filtered)")
+            f1, f2, f3, f4 = st.columns(4)
+            with f1.container(border=True):
+                st.metric("1 · Raw alarms", f"{int(r.raw_alarms):,}")
+                st.caption("every code, every turbine")
+                st.progress(1.0)
+            with f2.container(border=True):
+                st.metric(
+                    "2 · Incidents",
+                    f"{int(r.incidents):,}",
+                    f"{int(r.raw_alarms) / max(int(r.incidents), 1):.1f} : 1",
+                    delta_color="off",
+                )
+                st.caption("grouped by asset + code")
+                st.progress(min(1.0, int(r.incidents) / max(int(r.raw_alarms), 1) * 10))
+            with f3.container(border=True):
+                st.metric(
+                    "3 · In queue",
+                    f"{queued:,}",
+                    f"−{int(r.nuisance):,}",
+                    delta_color="off",
+                )
+                st.caption("engine-classed nuisance removed")
+                st.progress(min(1.0, queued / max(int(r.raw_alarms), 1) * 10))
+            with f4.container(border=True):
+                st.metric(
+                    "4 · Actionable",
+                    f"{int(r.actionable):,}",
+                    f"undetermined rate {float(r.undetermined_rate):.1%}",
+                    delta_color="off",
+                    help="Undetermined is published, not buried (T-61) — a rising rate means "
+                    "the evidence base is degrading.",
+                )
+                st.caption(f"+ {int(r.undetermined):,} undetermined, ranked separately")
+                st.progress(min(1.0, int(r.actionable) / max(int(r.raw_alarms), 1) * 10))
+            # Compression and real-failures-suppressed are no longer displayed (product
+            # decision, 2026-10-01); zero suppressed real failures is still enforced by
+            # the engine assertion T-70 on every `just verify`.
+
+            # ------------------------------------------------- 80:20 contributors
+            pareto = _run(
+                f"""select alarm_code, max(alarm_name) as alarm_name, count(*) as incidents
                     from {q("ENGINE.ENG_INCIDENT")}
-                    where incident_class = 'NUISANCE' and {FILTER_SQL}
-                    order by incident_start desc limit 200""",
-                params=fparams,
+                    where incident_class = 'ACTIONABLE' and {FILTER_SQL}
+                    group by alarm_code order by incidents desc, alarm_code""",
+                params=[sites_json, sev_json, "", "%", "%", "%", "%"],
             )
-            scope = f"of {int(r.nuisance):,} engine-classed nuisance"
-            tail = "The only suppression candidates."
-        n_match = int(queue["n_match"].iloc[0]) if not queue.empty else 0
-        st.caption(
-            f"Showing **{len(queue):,}** of {n_match:,} matching ({scope}). {tail} {filtered_note}"
-        )
-        shown = queue.drop(columns=["n_match", "incident_id"], errors="ignore")
-        event = st.dataframe(
-            shown,
-            hide_index=True,
-            width="stretch",
-            height=360,
-            on_select="rerun",
-            selection_mode="single-row",
-            key="q_table",
-            column_config={
+            if not pareto.empty:
+                total = float(pareto["incidents"].sum())
+                pareto["pct"] = pareto["incidents"] / total
+                pareto["cum_pct"] = pareto["pct"].cumsum()
+                n_codes = len(pareto)
+                # Smallest head that reaches 80% of actionable incidents.
+                k = int((pareto["cum_pct"] < 0.8).sum()) + 1
+                k = min(k, n_codes)
+                head = pareto.head(k).copy()
+                head.insert(0, "rank", [str(i) for i in range(1, k + 1)])
+                if k < n_codes:
+                    rest = pareto.iloc[k:]
+                    head.loc[len(head)] = {
+                        "rank": f"{k + 1}–{n_codes}",
+                        "alarm_code": "Others",
+                        "alarm_name": f"All remaining codes ({len(rest)} codes)",
+                        "incidents": float(rest["incidents"].sum()),
+                        "pct": float(rest["pct"].sum()),
+                        "cum_pct": 1.0,
+                    }
+                with st.container(border=True):
+                    st.markdown("**Top contributing components — the 80:20 view**")
+                    st.caption(
+                        "This information can help for parts stock maintenance. "
+                        f"Actionable incidents by alarm code. {filtered_note}"
+                    )
+                    st.dataframe(
+                        head,
+                        hide_index=True,
+                        width="stretch",
+                        column_config={
+                            "rank": st.column_config.TextColumn("Rank", width="small"),
+                            "alarm_code": st.column_config.TextColumn("Code"),
+                            "alarm_name": st.column_config.TextColumn("Name", width="large"),
+                            "incidents": st.column_config.NumberColumn("Incidents", format="%d"),
+                            "pct": st.column_config.NumberColumn("%", format="percent"),
+                            "cum_pct": st.column_config.ProgressColumn(
+                                "Cumulative %", format="percent", min_value=0.0, max_value=1.0
+                            ),
+                        },
+                    )
+                    st.caption(
+                        f"**{k} ({k / n_codes:.0%}) alarm codes out of {n_codes} generate "
+                        f"~{float(pareto['cum_pct'].iloc[k - 1]):.0%} of actionable incidents.**"
+                    )
+
+            st.subheader("Incident queue")
+            st.caption("Select a row to see why it was classed and whether it can be suppressed.")
+
+            cols = """incident_id, incident_class, severity, alarm_name, alarm_code, turbine_id,
+                      site_code, component_id, incident_start, n_alarms, is_safety_critical,
+                      is_corroborated, is_elevated, all_auto_reset, class_reason"""
+
+            def _incidents(view: str, search: str, limit: int | None) -> pd.DataFrame:
+                """One class of incidents, plus Age and the part lead time (bound params)."""
+                like = f"%{search}%"
+                fparams = [sites_json, sev_json, search, like, like, like, like]
+                if view == "Nuisance":
+                    base = f"""select row_number() over (order by incident_start desc) as
+                        queue_rank,
+                                      {cols}
+                               from {q("ENGINE.ENG_INCIDENT")}
+                               where incident_class = 'NUISANCE' and {FILTER_SQL}"""
+                    params = fparams
+                else:
+                    base = f"""select row_number() over (order by queue_rank) as queue_rank, {cols}
+                               from {q("ENGINE.ENG_OPERATOR_QUEUE")}
+                               where incident_class = ? and {FILTER_SQL}"""
+                    params = [view.upper(), *fparams]
+                # Integer from code, never from the user.
+                lim = f"limit {int(limit)}" if limit else ""
+                df = _run(
+                    f"""select x.*, datediff(day, x.incident_start, current_date()) as age_days,
+                               ar.lead_time_days, count(*) over () as n_match
+                        from ({base}) x
+                        left join {q("ENGINE.ENG_ALERT_RANKED")} ar
+                               on ar.component_id = x.component_id
+                        order by x.queue_rank {lim}""",
+                    params=params,
+                )
+                df["lead_time"] = df["lead_time_days"].map(
+                    lambda v: "N/A" if pd.isna(v) else f"{int(v)} days"
+                )
+                return df.drop(columns=["lead_time_days"])
+
+            QCOLS = {
                 "queue_rank": st.column_config.NumberColumn("#", width="small"),
                 "incident_class": st.column_config.TextColumn("Class"),
                 "severity": st.column_config.TextColumn("Severity"),
@@ -566,699 +625,884 @@ with t_alarms, _degrade("The alarm queue"):
                 "site_code": None,
                 "component_id": st.column_config.TextColumn("Component"),
                 "incident_start": st.column_config.DatetimeColumn("Started", format="MM-DD HH:mm"),
+                "age_days": st.column_config.NumberColumn(
+                    "Age ⓘ",
+                    format="%d d",
+                    help="How many days ago this alarm started, counted from today.",
+                ),
+                "lead_time": st.column_config.TextColumn(
+                    "Lead time to failure ⓘ",
+                    help="Days needed to obtain the replacement part for this component "
+                    "(supply lead time — not a failure prediction). N/A when no component "
+                    "or part is linked.",
+                ),
                 "n_alarms": st.column_config.NumberColumn("Alarms"),
                 "is_safety_critical": st.column_config.CheckboxColumn("Safety"),
                 "is_corroborated": st.column_config.CheckboxColumn("Corrob."),
                 "is_elevated": st.column_config.CheckboxColumn("Elevated"),
                 "all_auto_reset": None,
                 "class_reason": st.column_config.TextColumn("Why this class", width="large"),
-            },
-        )
-        if queue.empty:
-            st.info("No incidents match these filters.", icon=":material/filter_alt_off:")
-        else:
-            rows = event.selection.rows if event and event.selection else []
-            d = queue.iloc[rows[0] if rows else 0]
-            iid = d["incident_id"]
-            risk = _run(
-                f"""select count_if(risk_band in ('HIGH', 'MEDIUM')) as n_risky,
-                           coalesce(max(iff(risk_band = 'HIGH', 'HIGH', null)),
-                                    max(iff(risk_band = 'MEDIUM', 'MEDIUM', null)), 'LOW') as band
-                    from {q("ENGINE.ENG_ALERT_RANKED")} where turbine_id = ?""",
-                params=[d["turbine_id"]],
-            ).iloc[0]
+            }
+            QORDER = [c for c in QCOLS if c not in ("site_code", "all_auto_reset")]
 
-            left, right = st.columns([3, 2])
-            with left.container(border=True):
-                st.markdown(f"**Why was it classed this way?** — {d['alarm_name']}")
-                with st.container(horizontal=True):
-                    st.badge(
-                        d["incident_class"],
-                        color="violet" if d["incident_class"] == "ACTIONABLE" else "gray",
-                    )
-                    st.badge(d["severity"], color="gray")
-                    if bool(d["is_safety_critical"]):
-                        st.badge("Safety-critical", icon=":material/shield:", color="red")
-                    st.badge(
-                        f"Turbine risk {risk['band']}",
-                        color="orange" if risk["band"] != "LOW" else "gray",
-                    )
-                st.caption(
-                    f"{d['turbine_id']} · {d['component_id'] or 'no component'} · "
-                    f"{d['incident_start']} · {int(d['n_alarms'])} alarm(s) · `{iid}`"
+            @st.dialog("All incidents", width="large")
+            def _expanded(view: str, search: str) -> None:
+                full = _incidents(view, search, None).drop(
+                    columns=["n_match", "incident_id"], errors="ignore"
                 )
-                st.markdown(f"**Rule applied** — {d['class_reason']}")
-                ev = _run(
-                    f"""select channel, verdict, measured_value, reference_value, detail
-                        from {q("ENGINE.ENG_INCIDENT_EVIDENCE")}
-                        where incident_id = ?
-                        order by decode(channel, 'CORROBORATION', 1, 'OPERATING_POINT', 2,
-                                        'RESET_RECURRENCE', 3, 4)""",
-                    params=[iid],
-                )
-                if ev.empty:
-                    st.caption("No stored evidence rows for this incident.")
-                else:
-                    ev["verdict"] = ev["verdict"].map(VERDICT).fillna(ev["verdict"])
-                    tally = ev["verdict"].value_counts()
-                    st.markdown(
-                        "**Evidence channels** — "
-                        + " · ".join(
-                            f"{int(tally.get(k, 0))} {k.lower()}"
-                            for k in ("Actionable", "Nuisance", "No evidence")
-                        )
-                    )
-                    st.dataframe(
-                        ev,
-                        hide_index=True,
-                        width="stretch",
-                        column_config={
-                            "channel": "Channel",
-                            "verdict": "Verdict",
-                            "measured_value": st.column_config.NumberColumn("Measured"),
-                            "reference_value": st.column_config.NumberColumn("Reference"),
-                            "detail": st.column_config.TextColumn("Detail", width="large"),
-                        },
-                    )
-                    st.caption(
-                        "Measured against reference. The four channels ADR-0017 weighs, "
-                        "stored so a human can disagree (T-68)."
-                    )
-                _ask_context(
-                    "incident",
-                    f"Incident · {d['turbine_id']} · {d['alarm_code']}",
-                    f"An RMC engineer is looking at alarm incident {iid}: {d['alarm_code']} "
-                    f"({d['alarm_name']}) on turbine {d['turbine_id']}, component "
-                    f"{d['component_id'] or 'unknown'}, severity {d['severity']}, started "
-                    f"{d['incident_start']}, engine class {d['incident_class']}. "
-                    "Answer about this incident and this turbine.",
-                )
-
-            with right.container(border=True):
-                st.markdown("**Suppress this incident**")
-                st.caption(
-                    "Suppression is the one action that can hide a real failure. The procedure "
-                    "re-checks every gate itself — time-boxed, audited, reversible. Refusals are "
-                    "recorded too."
-                )
-                # Display only: mirrors SP_APPROVE_SUPPRESSION's guards in its order.
-                # The procedure stays the authority and re-checks every one.
-                gates = [
-                    ("Not a safety-critical code", not bool(d["is_safety_critical"])),
-                    ("No elevated evidence on asset", not bool(d["is_elevated"])),
-                    ("No MEDIUM/HIGH risk on the turbine", int(risk["n_risky"]) == 0),
-                    ("Engine-classed NUISANCE", d["incident_class"] == "NUISANCE"),
+                st.caption(f"{view} · every matching row · {filtered_note}")
+                fcols = [
+                    ("incident_class", "Class"),
+                    ("severity", "Severity"),
+                    ("alarm_code", "Code"),
+                    ("turbine_id", "Turbine"),
+                    ("site_code", "Site"),
+                    ("component_id", "Component"),
                 ]
-                for label, ok in gates:
-                    st.markdown(
-                        f":material/{'check_circle' if ok else 'cancel'}: {label}"
-                        if ok
-                        else f":gray[:material/cancel: {label}]"
-                    )
-                failing = sum(1 for _, ok in gates if not ok)
-                if failing == 0:
-                    st.success(
-                        "Eligible — a request will be granted, time-boxed and audited.",
-                        icon=":material/lock_open:",
-                    )
-                else:
-                    st.warning(
-                        f"Not eligible — a request will be refused and recorded "
-                        f"({failing} gate{'s' if failing > 1 else ''} failing).",
-                        icon=":material/lock:",
-                    )
-                with st.form("suppress", border=False):
-                    reason = st.text_input(
-                        "Reason (required)", placeholder="Why is this noise? At least 10 characters"
-                    )
-                    hours = st.number_input("Hours", min_value=1, max_value=168, value=24)
-                    sent = st.form_submit_button(
-                        f"Request suppression for {d['turbine_id']} · {d['alarm_code']}",
-                        icon=":material/notifications_off:",
-                    )
-                if sent:
-                    st.session_state["n_requests"] = st.session_state.get("n_requests", 0) + 1
-                    _show(
-                        _call(
-                            "ACTION.SP_APPROVE_SUPPRESSION",
-                            [iid, int(hours), reason, _key("suppress", iid), _viewer()],
-                        )
-                    )
-
-        active = _fresh(
-            f"""select suppression_id, incident_id, turbine_id, alarm_code, reason,
-                       approved_by, on_behalf_of, approved_at, expires_at
-                from {q("ACTION.ACT_V_SUPPRESSION_ACTIVE")} order by approved_at desc"""
-        )
-        with st.container(border=True):
-            st.markdown(
-                f"**Active suppressions · {len(active)}** — "
-                f"{st.session_state.get('n_requests', 0)} request(s) this session"
-            )
-            if active.empty:
-                st.caption(
-                    "None. Engine-classed nuisance incidents are the only eligible candidates — "
-                    "switch the queue to Nuisance to find one."
+                pick = st.columns(len(fcols))
+                for (col, label), slot in zip(fcols, pick, strict=True):
+                    vals = sorted(full[col].dropna().astype(str).unique())
+                    chosen = slot.multiselect(label, vals, key=f"xf_{col}", placeholder="All")
+                    if chosen:
+                        full = full[full[col].astype(str).isin(chosen)]
+                d1, d2 = st.columns([3, 1], vertical_alignment="center")
+                d1.markdown(f"**{len(full):,} row(s)**")
+                d2.download_button(
+                    "Export all",
+                    full.to_csv(index=False).encode("utf-8"),
+                    file_name=f"incidents_{view.lower()}.csv",
+                    mime="text/csv",
+                    icon=":material/download:",
+                    width="stretch",
                 )
-            else:
-                for srow in active.itertuples():
-                    a1, a2 = st.columns([4, 1], vertical_alignment="center")
-                    a1.markdown(
-                        f"**{srow.turbine_id} · {srow.alarm_code}** — until {srow.expires_at} · "
-                        f"“{srow.reason}” · by {srow.on_behalf_of or srow.approved_by}"
+                st.dataframe(
+                    full,
+                    hide_index=True,
+                    width="stretch",
+                    height=520,
+                    column_config=QCOLS,
+                    column_order=QORDER,
+                )
+
+            # A fragment: switching class, searching or selecting a row reruns only
+            # the queue and its panels, never the whole page.
+            @st.fragment
+            def _queue_section() -> None:
+                c_view, c_search, c_exp = st.columns([2, 3, 1], vertical_alignment="bottom")
+                view = (
+                    c_view.segmented_control(
+                        "Show",
+                        ["Actionable", "Undetermined", "Nuisance"],
+                        default="Actionable",
+                        key="q_view",
+                        label_visibility="collapsed",
                     )
-                    if a2.button("Lift", key=f"lift_{srow.suppression_id}", icon=":material/undo:"):
-                        _show(
-                            _call(
-                                "ACTION.SP_REVOKE_SUPPRESSION",
-                                [
-                                    srow.suppression_id,
-                                    "Lifted from the command center by the operator",
-                                    _key("revoke", srow.suppression_id),
-                                    _viewer(),
-                                ],
+                    or "Actionable"
+                )
+                search = (
+                    c_search.text_input(
+                        "Search",
+                        key="q_search",
+                        placeholder="Turbine, alarm code, name or component",
+                        label_visibility="collapsed",
+                    )
+                    or ""
+                ).strip()
+                if c_exp.button(
+                    "Expand",
+                    icon=":material/open_in_full:",
+                    help="Show every matching record, with column filters and export.",
+                    width="stretch",
+                ):
+                    _expanded(view, search)
+                queue = _incidents(view, search, 200)
+                scope, tail = {
+                    "Actionable": (
+                        f"of {int(r.actionable):,} actionable",
+                        "Ranked first in the queue.",
+                    ),
+                    "Undetermined": (
+                        f"of {int(r.undetermined):,} undetermined",
+                        "Never hidden, never suppressible.",
+                    ),
+                    "Nuisance": (
+                        f"of {int(r.nuisance):,} engine-classed nuisance",
+                        "The only suppression candidates.",
+                    ),
+                }[view]
+                n_match = int(queue["n_match"].iloc[0]) if not queue.empty else 0
+                st.caption(
+                    f"Showing **{len(queue):,}** of {n_match:,} matching ({scope}). "
+                    f"{tail} {filtered_note}"
+                )
+                shown = queue.drop(columns=["n_match", "incident_id"], errors="ignore")
+                event = st.dataframe(
+                    shown,
+                    hide_index=True,
+                    width="stretch",
+                    height=360,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    key=f"q_table_{view}",
+                    column_config=QCOLS,
+                    column_order=QORDER,
+                )
+                if queue.empty:
+                    st.info("No incidents match these filters.", icon=":material/filter_alt_off:")
+                else:
+                    rows = event.selection.rows if event and event.selection else []
+                    d = queue.iloc[rows[0] if rows and rows[0] < len(queue) else 0]
+                    iid = d["incident_id"]
+                    risk = _run(
+                        f"""select count_if(risk_band in ('HIGH', 'MEDIUM')) as n_risky,
+                                   coalesce(max(iff(risk_band = 'HIGH', 'HIGH', null)),
+                                            max(iff(risk_band = 'MEDIUM', 'MEDIUM', null)),
+                                                'LOW') as band
+                            from {q("ENGINE.ENG_ALERT_RANKED")} where turbine_id = ?""",
+                        params=[d["turbine_id"]],
+                    ).iloc[0]
+
+                    left, right = st.columns([3, 2])
+                    with left.container(border=True):
+                        st.markdown(f"**Why was it classed this way?** — {d['alarm_name']}")
+                        with st.container(horizontal=True):
+                            st.badge(
+                                d["incident_class"],
+                                color="violet" if d["incident_class"] == "ACTIONABLE" else "gray",
                             )
+                            st.badge(d["severity"], color="gray")
+                            if bool(d["is_safety_critical"]):
+                                st.badge("Safety-critical", icon=":material/shield:", color="red")
+                            st.badge(
+                                f"Turbine risk {risk['band']}",
+                                color="orange" if risk["band"] != "LOW" else "gray",
+                            )
+                        st.caption(
+                            f"{d['turbine_id']} · {d['component_id'] or 'no component'} · "
+                            f"{d['incident_start']} · {int(d['n_alarms'])} alarm(s) · `{iid}`"
                         )
+                        st.markdown(f"**Rule applied** — {d['class_reason']}")
+                        ev = _run(
+                            f"""select channel, verdict, measured_value, reference_value, detail
+                                from {q("ENGINE.ENG_INCIDENT_EVIDENCE")}
+                                where incident_id = ?
+                                order by decode(channel, 'CORROBORATION', 1, 'OPERATING_POINT', 2,
+                                                'RESET_RECURRENCE', 3, 4)""",
+                            params=[iid],
+                        )
+                        if ev.empty:
+                            st.caption("No stored evidence rows for this incident.")
+                        else:
+                            ev["verdict"] = ev["verdict"].map(VERDICT).fillna(ev["verdict"])
+                            tally = ev["verdict"].value_counts()
+                            st.markdown(
+                                "**Evidence channels** — "
+                                + " · ".join(
+                                    f"{int(tally.get(k, 0))} {k.lower()}"
+                                    for k in ("Actionable", "Nuisance", "No evidence")
+                                )
+                            )
+                            st.dataframe(
+                                ev,
+                                hide_index=True,
+                                width="stretch",
+                                column_config={
+                                    "channel": "Channel",
+                                    "verdict": "Verdict",
+                                    "measured_value": st.column_config.NumberColumn("Measured"),
+                                    "reference_value": st.column_config.NumberColumn("Reference"),
+                                    "detail": st.column_config.TextColumn("Detail", width="large"),
+                                },
+                            )
+                            st.caption(
+                                "Measured against reference. The four channels ADR-0017 weighs, "
+                                "stored so a human can disagree (T-68)."
+                            )
+                        _ask_context(
+                            "incident",
+                            f"Incident · {d['turbine_id']} · {d['alarm_code']}",
+                            f"An RMC engineer is looking at alarm incident {iid}: "
+                            f"{d['alarm_code']} "
+                            f"({d['alarm_name']}) on turbine {d['turbine_id']}, component "
+                            f"{d['component_id'] or 'unknown'}, severity {d['severity']}, started "
+                            f"{d['incident_start']}, engine class {d['incident_class']}. "
+                            "Answer about this incident and this turbine.",
+                        )
+
+                    with right.container(border=True):
+                        st.markdown("**Suppress this incident**")
+                        st.caption(
+                            "Suppression is the one action that can hide a real failure. "
+                            "The procedure "
+                            "re-checks every gate itself — time-boxed, audited, reversible. "
+                            "Refusals are "
+                            "recorded too."
+                        )
+                        # Display only: mirrors SP_APPROVE_SUPPRESSION's guards in its order.
+                        # The procedure stays the authority and re-checks every one.
+                        gates = [
+                            ("Not a safety-critical code", not bool(d["is_safety_critical"])),
+                            ("No elevated evidence on asset", not bool(d["is_elevated"])),
+                            ("No MEDIUM/HIGH risk on the turbine", int(risk["n_risky"]) == 0),
+                            ("Engine-classed NUISANCE", d["incident_class"] == "NUISANCE"),
+                        ]
+                        for label, ok in gates:
+                            st.markdown(
+                                f":material/{'check_circle' if ok else 'cancel'}: {label}"
+                                if ok
+                                else f":gray[:material/cancel: {label}]"
+                            )
+                        failing = sum(1 for _, ok in gates if not ok)
+                        if failing == 0:
+                            st.success(
+                                "Eligible — a request will be granted, time-boxed and audited.",
+                                icon=":material/lock_open:",
+                            )
+                        else:
+                            st.warning(
+                                f"Not eligible — a request will be refused and recorded "
+                                f"({failing} gate{'s' if failing > 1 else ''} failing).",
+                                icon=":material/lock:",
+                            )
+                        with st.form("suppress", border=False):
+                            reason = st.text_input(
+                                "Reason (required)",
+                                placeholder="Why is this noise? At least 10 characters",
+                            )
+                            hours = st.number_input("Hours", min_value=1, max_value=168, value=24)
+                            sent = st.form_submit_button(
+                                f"Request suppression for {d['turbine_id']} · {d['alarm_code']}",
+                                icon=":material/notifications_off:",
+                            )
+                        if sent:
+                            st.session_state["n_requests"] = (
+                                st.session_state.get("n_requests", 0) + 1
+                            )
+                            _show(
+                                _call(
+                                    "ACTION.SP_APPROVE_SUPPRESSION",
+                                    [iid, int(hours), reason, _key("suppress", iid), _viewer()],
+                                )
+                            )
+
+                active = _fresh(
+                    f"""select suppression_id, incident_id, turbine_id, alarm_code, reason,
+                               approved_by, on_behalf_of, approved_at, expires_at
+                        from {q("ACTION.ACT_V_SUPPRESSION_ACTIVE")} order by approved_at desc"""
+                )
+                with st.container(border=True):
+                    st.markdown(
+                        f"**Active suppressions · {len(active)}** — "
+                        f"{st.session_state.get('n_requests', 0)} request(s) this session"
+                    )
+                    if active.empty:
+                        st.caption(
+                            "None. Engine-classed nuisance incidents are the only eligible "
+                            "candidates — "
+                            "switch the queue to Nuisance to find one."
+                        )
+                    else:
+                        for srow in active.itertuples():
+                            a1, a2 = st.columns([4, 1], vertical_alignment="center")
+                            a1.markdown(
+                                f"**{srow.turbine_id} · {srow.alarm_code}** — until "
+                                f"{srow.expires_at} · "
+                                f"“{srow.reason}” · by {srow.on_behalf_of or srow.approved_by}"
+                            )
+                            if a2.button(
+                                "Lift", key=f"lift_{srow.suppression_id}", icon=":material/undo:"
+                            ):
+                                _show(
+                                    _call(
+                                        "ACTION.SP_REVOKE_SUPPRESSION",
+                                        [
+                                            srow.suppression_id,
+                                            "Lifted from the command center by the operator",
+                                            _key("revoke", srow.suppression_id),
+                                            _viewer(),
+                                        ],
+                                    )
+                                )
+
+            _queue_section()
 
 # --------------------------------------------------------------------------- triage
-with t_triage, _degrade("Risk triage"):
-    ranked = _run(
-        f"""select money_rank, probability_rank, component_id, turbine_id, site_code,
-                   component_class_name, risk_probability, risk_band, anomaly_flag,
-                   anomaly_distance, top_drivers, part_cost_inr, lead_time_days,
-                   requires_crane, downtime_days_illustrative, downtime_ld_cost_inr,
-                   expected_loss_inr
-            from {q("ENGINE.ENG_ALERT_RANKED")}
-            order by money_rank"""
-    )
-    ranked = ranked[ranked["site_code"].isin(sel_sites)] if not ranked.empty else ranked
-    if ranked.empty:
-        st.warning("No risk scores. Run `just deploy-ml`, then `just deploy-engine`.")
-    else:
-        st.subheader("Triage ranked by money, not by probability")
-        st.caption(
-            "Expected loss = risk × (part cost + LD cost of the downtime). "
-            "The repair allowance inside downtime is **illustrative** (NFR-10)."
+if NAV == TRIAGE:
+    with _degrade("Risk triage"):
+        ranked = _run(
+            f"""select money_rank, probability_rank, component_id, turbine_id, site_code,
+                       component_class_name, risk_probability, risk_band, anomaly_flag,
+                       anomaly_distance, top_drivers, part_cost_inr, lead_time_days,
+                       requires_crane, downtime_days_illustrative, downtime_ld_cost_inr,
+                       expected_loss_inr
+                from {q("ENGINE.ENG_ALERT_RANKED")}
+                order by money_rank"""
         )
-        top = ranked.head(15)
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**By expected loss**")
-            st.dataframe(
-                top[
-                    [
-                        "money_rank",
-                        "component_id",
-                        "component_class_name",
-                        "risk_probability",
-                        "expected_loss_inr",
-                        "anomaly_flag",
-                    ]
-                ],
-                hide_index=True,
-                width="stretch",
-            )
-        with right:
-            st.markdown("**By probability alone**")
-            st.dataframe(
-                ranked.sort_values("probability_rank").head(15)[
-                    [
-                        "probability_rank",
-                        "component_id",
-                        "component_class_name",
-                        "risk_probability",
-                        "expected_loss_inr",
-                        "anomaly_flag",
-                    ]
-                ],
-                hide_index=True,
-                width="stretch",
-            )
-
-        st.subheader("Evidence panel")
-        cid = st.selectbox("Component", ranked["component_id"].tolist())
-        row = ranked[ranked["component_id"] == cid].iloc[0]
-        e1, e2, e3, e4 = st.columns(4)
-        e1.metric("Risk (30-day)", f"{float(row.risk_probability):.1%}", row.risk_band)
-        e2.metric(
-            "Anomaly",
-            "flagged" if bool(row.anomaly_flag) else "normal",
-            f"distance {float(row.anomaly_distance):.2f}"
-            if pd.notna(row.anomaly_distance)
-            else None,
-            help="A separate question: is this behaving unlike itself? Not failure prediction.",
-        )
-        e3.metric("Expected loss", inr(row.expected_loss_inr))
-        e4.metric(
-            "Part · lead time",
-            inr(row.part_cost_inr),
-            f"{int(row.lead_time_days or 0)} days{' · crane' if bool(row.requires_crane) else ''}",
-        )
-
-        drivers = _run(
-            f"""select driver_rank, feature_name, direction, importance, component_value,
-                       own_baseline_delta, importance_method
-                from {q("ML.DRIVER_COMPONENT_RISK")} d
-                join {q("ML.SCORE_COMPONENT_RISK")} s
-                  on s.component_id = d.component_id and s.scored_date = d.scored_date
-                where d.component_id = ?
-                order by driver_rank""",
-            params=[cid],
-        )
-        st.markdown("**Why — the drivers behind this score**")
-        st.dataframe(drivers, hide_index=True, width="stretch")
-        if not drivers.empty:
+        ranked = ranked[ranked["site_code"].isin(sel_sites)] if not ranked.empty else ranked
+        if ranked.empty:
+            st.warning("No risk scores. Run `just deploy-ml`, then `just deploy-engine`.")
+        else:
+            st.subheader("Triage ranked by money, not by probability")
             st.caption(
-                f"Importance method: `{drivers.iloc[0]['importance_method']}` — a train-split "
-                "standardised difference, not a per-prediction attribution (I-8)."
+                "Expected loss = risk × (part cost + LD cost of the downtime). "
+                "The repair allowance inside downtime is **illustrative** (NFR-10)."
             )
-        _ask_context(
-            "component",
-            f"Component · {cid}",
-            f"A reliability engineer is looking at component {cid}: 30-day failure risk "
-            f"{float(row.risk_probability):.1%} ({row.risk_band}), expected loss "
-            f"{inr(row.expected_loss_inr)}. Answer about this component.",
-        )
-
-        series = _run(
-            f"""select scored_date, primary_mean, expected_mean,
-                   lower_bound, upper_bound, is_anomaly
-                from {q("ML.SCORE_COMPONENT_ANOMALY")}
-                where component_id = ? order by scored_date""",
-            params=[cid],
-        )
-        if not series.empty:
-            st.markdown("**Behaving unlike itself? — the anomaly detector's view**")
-            base = alt.Chart(series).encode(x=alt.X("scored_date:T", title=None))
-            band = base.mark_area(opacity=0.2).encode(
-                y=alt.Y("lower_bound:Q", title="primary channel"), y2="upper_bound:Q"
-            )
-            line = base.mark_line().encode(y="primary_mean:Q")
-            pts = (
-                base.transform_filter("datum.is_anomaly")
-                .mark_point(filled=True, size=60)
-                .encode(
-                    y="primary_mean:Q",
-                    tooltip=["scored_date:T", "primary_mean:Q", "expected_mean:Q"],
+            # One column config for both rankings: readable labels, risk as a bar.
+            RCOLS = {
+                "money_rank": st.column_config.NumberColumn("#", width="small"),
+                "probability_rank": st.column_config.NumberColumn("#", width="small"),
+                "component_id": st.column_config.TextColumn("Component"),
+                "component_class_name": st.column_config.TextColumn("Type"),
+                "risk_probability": st.column_config.ProgressColumn(
+                    "Risk (30d)", format="percent", min_value=0.0, max_value=1.0
+                ),
+                "risk_band": st.column_config.TextColumn("Band", width="small"),
+                "expected_loss_inr": st.column_config.NumberColumn(
+                    "Expected loss ₹", format="localized"
+                ),
+                "lead_time_days": st.column_config.NumberColumn("Part lead (d)", format="%d"),
+                "anomaly_flag": st.column_config.CheckboxColumn("Anomaly", width="small"),
+            }
+            show = [
+                "component_id",
+                "component_class_name",
+                "risk_probability",
+                "risk_band",
+                "expected_loss_inr",
+                "lead_time_days",
+                "anomaly_flag",
+            ]
+            left, right = st.columns(2)
+            with left.container(border=True):
+                st.markdown("**By expected loss**")
+                st.dataframe(
+                    ranked.head(15)[["money_rank", *show]],
+                    hide_index=True,
+                    width="stretch",
+                    column_config=RCOLS,
                 )
-            )
-            st.altair_chart((band + line + pts).properties(height=240), width="stretch")
+            with right.container(border=True):
+                st.markdown("**By probability alone**")
+                st.dataframe(
+                    ranked.sort_values("probability_rank").head(15)[["probability_rank", *show]],
+                    hide_index=True,
+                    width="stretch",
+                    column_config=RCOLS,
+                )
 
-        st.subheader("Work order")
-        st.caption(
-            "A draft is made only for MEDIUM or HIGH risk, and carries the evidence as it "
-            "stands now. Approval re-checks that evidence against the engine and writes one "
-            "work order, however many times it is clicked. A draft gets a window, crew and "
-            "crane only when a planner accepts a schedule suggestion below."
-        )
-        if st.button("Draft a work order", icon=":material/edit_note:"):
-            _show(_call("ACTION.SP_DRAFT_WORK_ORDER", [cid, _key("draft", cid), _viewer()]))
-        drafts = _fresh(
-            f"""select d.draft_id, d.status, d.scope, d.part_number, d.part_name,
-                       d.part_lead_time_days, d.requires_crane, d.stock_on_hand,
-                       d.procedure_doc_id, d.procedure_section, d.risk_band, d.risk_probability,
-                       d.expected_loss_inr, d.risk_as_of_date, d.window_status, d.window_note,
-                       d.drafted_by, d.drafted_at, w.work_order_id, w.approved_by, w.approved_at
-                from {q("ACTION.ACT_WORK_ORDER_DRAFT")} d
-                left join {q("ACTION.ACT_WORK_ORDER")} w on w.draft_id = d.draft_id
-                where d.component_id = ? and not d.is_selftest
-                order by d.drafted_at desc limit 5""",
-            params=[cid],
-        )
-        if not drafts.empty:
-            d = drafts.iloc[0]
-            st.markdown(f"**Latest draft — {d.status}**")
-            st.write(d.scope)
-            w1, w2, w3, w4 = st.columns(4)
-            w1.metric("Part", d.part_number, d.part_name)
-            w2.metric(
-                "Lead time · stock",
-                f"{int(d.part_lead_time_days or 0)} days",
-                f"{int(d.stock_on_hand or 0)} on hand"
-                + (" · crane" if bool(d.requires_crane) else ""),
+            st.subheader("Evidence panel")
+            # Keyed, so picking a component keeps its value across reruns.
+            cid = st.selectbox("Component", ranked["component_id"].tolist(), key="tri_comp")
+            row = ranked[ranked["component_id"] == cid].iloc[0]
+            e1, e2, e3, e4 = st.columns(4)
+            with e1.container(border=True):
+                st.metric(
+                    "Risk (30-day)",
+                    f"{float(row.risk_probability):.1%}",
+                    row.risk_band,
+                    delta_color="off",
+                )
+                st.caption("chance of failure within the horizon")
+            with e2.container(border=True):
+                st.metric(
+                    "Anomaly",
+                    "flagged" if bool(row.anomaly_flag) else "normal",
+                    f"distance {float(row.anomaly_distance):.2f}"
+                    if pd.notna(row.anomaly_distance)
+                    else None,
+                    delta_color="off",
+                    help="A separate question: is this behaving unlike itself? Not failure "
+                    "prediction.",
+                )
+                st.caption("behaving unlike itself?")
+            with e3.container(border=True):
+                st.metric("Expected loss", inr(row.expected_loss_inr))
+                st.caption("risk × (part + downtime LD cost)")
+            with e4.container(border=True):
+                st.metric(
+                    "Part · lead time",
+                    inr(row.part_cost_inr),
+                    f"{int(row.lead_time_days or 0)} days"
+                    f"{' · crane' if bool(row.requires_crane) else ''}",
+                    delta_color="off",
+                )
+                st.caption("spare cost and supply time")
+
+            drivers = _run(
+                f"""select driver_rank, feature_name, direction, importance, component_value,
+                           own_baseline_delta, importance_method
+                    from {q("ML.DRIVER_COMPONENT_RISK")} d
+                    join {q("ML.SCORE_COMPONENT_RISK")} s
+                      on s.component_id = d.component_id and s.scored_date = d.scored_date
+                    where d.component_id = ?
+                    order by driver_rank""",
+                params=[cid],
             )
-            w3.metric("Procedure", d.procedure_doc_id, d.procedure_section)
-            w4.metric("Window", d.window_status)
-            st.caption(d.window_note)
-            if d.status == "DRAFT":
-                a1, a2, a3 = st.columns([1, 1, 2])
-                if a1.button("Approve", type="primary", icon=":material/task_alt:"):
-                    _show(
-                        _call(
-                            "ACTION.SP_APPROVE_WORK_ORDER",
-                            [d.draft_id, _key("approve", d.draft_id), _viewer()],
-                        )
+            st.markdown("**Why — the drivers behind this score**")
+            st.dataframe(
+                drivers.drop(columns=["importance_method"], errors="ignore"),
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "driver_rank": st.column_config.NumberColumn("#", width="small"),
+                    "feature_name": st.column_config.TextColumn("Signal"),
+                    "direction": st.column_config.TextColumn("Direction"),
+                    "importance": st.column_config.NumberColumn("Importance", format="%.3f"),
+                    "component_value": st.column_config.NumberColumn("Value", format="%.3f"),
+                    "own_baseline_delta": st.column_config.NumberColumn(
+                        "vs own baseline", format="%.3f"
+                    ),
+                },
+            )
+            if not drivers.empty:
+                st.caption(
+                    f"Importance method: `{drivers.iloc[0]['importance_method']}` — a train-split "
+                    "standardised difference, not a per-prediction attribution (I-8)."
+                )
+            _ask_context(
+                "component",
+                f"Component · {cid}",
+                f"A reliability engineer is looking at component {cid}: 30-day failure risk "
+                f"{float(row.risk_probability):.1%} ({row.risk_band}), expected loss "
+                f"{inr(row.expected_loss_inr)}. Answer about this component.",
+            )
+
+            series = _run(
+                f"""select scored_date, primary_mean, expected_mean,
+                       lower_bound, upper_bound, is_anomaly
+                    from {q("ML.SCORE_COMPONENT_ANOMALY")}
+                    where component_id = ? order by scored_date""",
+                params=[cid],
+            )
+            if not series.empty:
+                st.markdown("**Behaving unlike itself? — the anomaly detector's view**")
+                base = alt.Chart(series).encode(x=alt.X("scored_date:T", title=None))
+                band = base.mark_area(opacity=0.2).encode(
+                    y=alt.Y("lower_bound:Q", title="primary channel"), y2="upper_bound:Q"
+                )
+                line = base.mark_line().encode(y="primary_mean:Q")
+                pts = (
+                    base.transform_filter("datum.is_anomaly")
+                    .mark_point(filled=True, size=60)
+                    .encode(
+                        y="primary_mean:Q",
+                        tooltip=["scored_date:T", "primary_mean:Q", "expected_mean:Q"],
                     )
-                code = a3.selectbox(
+                )
+                st.altair_chart((band + line + pts).properties(height=240), width="stretch")
+
+            st.subheader("Work order")
+            st.caption(
+                "A draft is made only for MEDIUM or HIGH risk, and carries the evidence as it "
+                "stands now. Approval re-checks that evidence against the engine and writes one "
+                "work order, however many times it is clicked. A draft gets a window, crew and "
+                "crane only when a planner accepts a schedule suggestion below."
+            )
+            if st.button("Draft a work order", icon=":material/edit_note:"):
+                _show(_call("ACTION.SP_DRAFT_WORK_ORDER", [cid, _key("draft", cid), _viewer()]))
+            drafts = _fresh(
+                f"""select d.draft_id, d.status, d.scope, d.part_number, d.part_name,
+                           d.part_lead_time_days, d.requires_crane, d.stock_on_hand,
+                           d.procedure_doc_id, d.procedure_section, d.risk_band, d.risk_probability,
+                           d.expected_loss_inr, d.risk_as_of_date, d.window_status, d.window_note,
+                           d.drafted_by, d.drafted_at, w.work_order_id, w.approved_by, w.approved_at
+                    from {q("ACTION.ACT_WORK_ORDER_DRAFT")} d
+                    left join {q("ACTION.ACT_WORK_ORDER")} w on w.draft_id = d.draft_id
+                    where d.component_id = ? and not d.is_selftest
+                    order by d.drafted_at desc limit 5""",
+                params=[cid],
+            )
+            if not drafts.empty:
+                d = drafts.iloc[0]
+                st.markdown(f"**Latest draft — {d.status}**")
+                st.write(d.scope)
+                w1, w2, w3, w4 = st.columns(4)
+                w1.metric("Part", d.part_number, d.part_name)
+                w2.metric(
+                    "Lead time · stock",
+                    f"{int(d.part_lead_time_days or 0)} days",
+                    f"{int(d.stock_on_hand or 0)} on hand"
+                    + (" · crane" if bool(d.requires_crane) else ""),
+                )
+                w3.metric("Procedure", d.procedure_doc_id, d.procedure_section)
+                w4.metric("Window", d.window_status)
+                st.caption(d.window_note)
+                if d.status == "DRAFT":
+                    a1, a2, a3 = st.columns([1, 1, 2])
+                    if a1.button("Approve", type="primary", icon=":material/task_alt:"):
+                        _show(
+                            _call(
+                                "ACTION.SP_APPROVE_WORK_ORDER",
+                                [d.draft_id, _key("approve", d.draft_id), _viewer()],
+                            )
+                        )
+                    code = a3.selectbox(
+                        "Reject reason",
+                        [
+                            "NOT_NEEDED",
+                            "ALREADY_PLANNED",
+                            "EVIDENCE_DISPUTED",
+                            "DUPLICATE_DRAFT",
+                            "OTHER",
+                        ],
+                    )
+                    note = a3.text_input("Note (required for OTHER)", key="reject_note")
+                    if a2.button("Reject", icon=":material/close:"):
+                        _show(
+                            _call(
+                                "ACTION.SP_REJECT_WORK_ORDER_DRAFT",
+                                [d.draft_id, code, note, _key("reject", d.draft_id), _viewer()],
+                            )
+                        )
+                elif pd.notna(d.work_order_id):
+                    st.success(
+                        f"Work order `{d.work_order_id}` approved by {d.approved_by} at "
+                        f"{d.approved_at}. Window: {d.window_status}.",
+                        icon=":material/assignment_turned_in:",
+                    )
+
+        # ------------------------------------------------------------- planning
+        plan = _fresh(
+            f"""select s.suggestion_id, s.suggestion_type, s.site_code, s.crew_id, s.start_day,
+                       s.end_day, s.component_count, s.mobilisations_saved,
+                       s.expected_loss_covered_inr, s.planned_downtime_mwh, s.binding_constraint,
+                       s.reasoning, s.plan_start,
+                       listagg(i.component_id, ', ') within group (order by i.start_day) as
+                           components,
+                       listagg(i.earliest_limited_by, ' | ') within group (order by i.start_day)
+                           as limited_by,
+                       max(dc.decision) as decision
+                from {q("ENGINE.ENG_SUGGESTION")} s
+                join {q("ENGINE.ENG_SUGGESTION_ITEM")} i on i.suggestion_id = s.suggestion_id
+                left join {q("ACTION.ACT_DECISION")} dc
+                       on dc.subject_id = s.suggestion_id and not dc.is_selftest
+                group by all
+                order by decode(s.suggestion_type, 'BUNDLE', 0, 'SCHEDULE', 1, 2), s.start_day"""
+        )
+        if not plan.empty:
+            st.subheader("Planning — windows the engine can vouch for")
+            st.caption(
+                f"Rolling 12 weeks from {plan.iloc[0]['plan_start']}. Every window passed all six "
+                "constraints (forecast wind, crew certification and commitments, part in hand, "
+                "crane mobilisation, horizon); nothing here was proposed by a model. Forecast, "
+                "crews and crane bookings are synthetic."
+            )
+            impact = _fresh(f"select * from {q('ENGINE.ENG_PLAN_IMPACT')}")
+            if not impact.empty:
+                im = impact.iloc[0]
+                p1, p2, p3, p4 = st.columns(4)
+                p1.metric("Expected loss covered", f"₹{im.covered_expected_loss_inr / 1e5:,.1f} L")
+                p2.metric("Left uncovered", f"₹{im.uncovered_expected_loss_inr / 1e5:,.1f} L")
+                p3.metric("Crane mobilisations saved", int(im.crane_mobilisations_saved))
+                p4.metric("Energy the work costs", f"{im.planned_downtime_mwh:,.1f} MWh")
+            st.dataframe(
+                plan[
+                    [
+                        "suggestion_type",
+                        "site_code",
+                        "components",
+                        "crew_id",
+                        "start_day",
+                        "end_day",
+                        "expected_loss_covered_inr",
+                        "binding_constraint",
+                        "limited_by",
+                        "decision",
+                    ]
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+            open_plan = plan[(plan.suggestion_type != "INFEASIBLE") & plan.decision.isna()]
+            if not open_plan.empty:
+                label = {
+                    r.suggestion_id: f"{r.suggestion_type} · {r.site_code} · {r.components}"
+                    for r in open_plan.itertuples()
+                }
+                sid = st.selectbox("Suggestion", list(label), format_func=label.get)
+                st.caption(open_plan.set_index("suggestion_id").loc[sid, "reasoning"])
+                b1, b2, b3 = st.columns([1, 1, 2])
+                if b1.button("Accept schedule", type="primary", icon=":material/event_available:"):
+                    _show(
+                        _call("ACTION.SP_ACCEPT_SUGGESTION", [sid, _key("accept", sid), _viewer()])
+                    )
+                reason = b3.selectbox(
                     "Reject reason",
                     [
-                        "NOT_NEEDED",
-                        "ALREADY_PLANNED",
-                        "EVIDENCE_DISPUTED",
-                        "DUPLICATE_DRAFT",
+                        "CREW_PREFERENCE",
+                        "CUSTOMER_OUTAGE",
+                        "BUNDLE_DIFFERENTLY",
+                        "RISK_DISPUTED",
                         "OTHER",
                     ],
+                    key="plan_reason",
                 )
-                note = a3.text_input("Note (required for OTHER)", key="reject_note")
-                if a2.button("Reject", icon=":material/close:"):
+                pnote = b3.text_input("Note (required for OTHER)", key="plan_note")
+                if b2.button("Reject", icon=":material/event_busy:", key="plan_reject"):
                     _show(
                         _call(
-                            "ACTION.SP_REJECT_WORK_ORDER_DRAFT",
-                            [d.draft_id, code, note, _key("reject", d.draft_id), _viewer()],
+                            "ACTION.SP_REJECT_SUGGESTION",
+                            [sid, reason, pnote, _key("reject_plan", sid), _viewer()],
                         )
                     )
-            elif pd.notna(d.work_order_id):
-                st.success(
-                    f"Work order `{d.work_order_id}` approved by {d.approved_by} at "
-                    f"{d.approved_at}. Window: {d.window_status}.",
-                    icon=":material/assignment_turned_in:",
+                st.caption(
+                    "Accepting schedules drafts that already exist — draft each component's work "
+                    "order first. It is refused if the engine no longer vouches for the window."
                 )
 
-    # ------------------------------------------------------------- planning
-    plan = _fresh(
-        f"""select s.suggestion_id, s.suggestion_type, s.site_code, s.crew_id, s.start_day,
-                   s.end_day, s.component_count, s.mobilisations_saved,
-                   s.expected_loss_covered_inr, s.planned_downtime_mwh, s.binding_constraint,
-                   s.reasoning, s.plan_start,
-                   listagg(i.component_id, ', ') within group (order by i.start_day) as components,
-                   listagg(i.earliest_limited_by, ' | ') within group (order by i.start_day)
-                       as limited_by,
-                   max(dc.decision) as decision
-            from {q("ENGINE.ENG_SUGGESTION")} s
-            join {q("ENGINE.ENG_SUGGESTION_ITEM")} i on i.suggestion_id = s.suggestion_id
-            left join {q("ACTION.ACT_DECISION")} dc
-                   on dc.subject_id = s.suggestion_id and not dc.is_selftest
-            group by all
-            order by decode(s.suggestion_type, 'BUNDLE', 0, 'SCHEDULE', 1, 2), s.start_day"""
-    )
-    if not plan.empty:
-        st.subheader("Planning — windows the engine can vouch for")
-        st.caption(
-            f"Rolling 12 weeks from {plan.iloc[0]['plan_start']}. Every window passed all six "
-            "constraints (forecast wind, crew certification and commitments, part in hand, "
-            "crane mobilisation, horizon); nothing here was proposed by a model. Forecast, "
-            "crews and crane bookings are synthetic."
-        )
-        impact = _fresh(f"select * from {q('ENGINE.ENG_PLAN_IMPACT')}")
-        if not impact.empty:
-            im = impact.iloc[0]
-            p1, p2, p3, p4 = st.columns(4)
-            p1.metric("Expected loss covered", f"₹{im.covered_expected_loss_inr / 1e5:,.1f} L")
-            p2.metric("Left uncovered", f"₹{im.uncovered_expected_loss_inr / 1e5:,.1f} L")
-            p3.metric("Crane mobilisations saved", int(im.crane_mobilisations_saved))
-            p4.metric("Energy the work costs", f"{im.planned_downtime_mwh:,.1f} MWh")
-        st.dataframe(
-            plan[
-                [
-                    "suggestion_type",
-                    "site_code",
-                    "components",
-                    "crew_id",
-                    "start_day",
-                    "end_day",
-                    "expected_loss_covered_inr",
-                    "binding_constraint",
-                    "limited_by",
-                    "decision",
-                ]
-            ],
-            hide_index=True,
-            width="stretch",
-        )
-        open_plan = plan[(plan.suggestion_type != "INFEASIBLE") & plan.decision.isna()]
-        if not open_plan.empty:
-            label = {
-                r.suggestion_id: f"{r.suggestion_type} · {r.site_code} · {r.components}"
-                for r in open_plan.itertuples()
-            }
-            sid = st.selectbox("Suggestion", list(label), format_func=label.get)
-            st.caption(open_plan.set_index("suggestion_id").loc[sid, "reasoning"])
-            b1, b2, b3 = st.columns([1, 1, 2])
-            if b1.button("Accept schedule", type="primary", icon=":material/event_available:"):
-                _show(_call("ACTION.SP_ACCEPT_SUGGESTION", [sid, _key("accept", sid), _viewer()]))
-            reason = b3.selectbox(
-                "Reject reason",
-                [
-                    "CREW_PREFERENCE",
-                    "CUSTOMER_OUTAGE",
-                    "BUNDLE_DIFFERENTLY",
-                    "RISK_DISPUTED",
-                    "OTHER",
-                ],
-                key="plan_reason",
-            )
-            pnote = b3.text_input("Note (required for OTHER)", key="plan_note")
-            if b2.button("Reject", icon=":material/event_busy:", key="plan_reject"):
-                _show(
-                    _call(
-                        "ACTION.SP_REJECT_SUGGESTION",
-                        [sid, reason, pnote, _key("reject_plan", sid), _viewer()],
-                    )
+            with st.expander("Why not sooner? Per-constraint results for one component"):
+                comps = sorted(
+                    {c.strip() for cs in plan.components for c in str(cs).split(",") if c.strip()}
                 )
-            st.caption(
-                "Accepting schedules drafts that already exist — draft each component's work "
-                "order first. It is refused if the engine no longer vouches for the window."
-            )
-
-        with st.expander("Why not sooner? Per-constraint results for one component"):
-            comps = sorted(
-                {c.strip() for cs in plan.components for c in str(cs).split(",") if c.strip()}
-            )
-            pick = st.selectbox("Component", comps, key="plan_comp")
-            cand = _run(
-                f"""select start_day, crew_id, is_feasible, weather_ok, crew_certified,
-                           crew_available, part_available, mobilisation_ok, within_horizon,
-                           max_forecast_gust_ms, gust_limit_ms, part_source, crew_conflict
-                    from {q("ENGINE.ENG_WINDOW_CANDIDATE")}
-                    where component_id = ? and crew_certified
-                    order by start_day, crew_id""",
-                params=[pick],
-            )
-            st.dataframe(cand, hide_index=True, width="stretch", height=300)
+                pick = st.selectbox("Component", comps, key="plan_comp")
+                cand = _run(
+                    f"""select start_day, crew_id, is_feasible, weather_ok, crew_certified,
+                               crew_available, part_available, mobilisation_ok, within_horizon,
+                               max_forecast_gust_ms, gust_limit_ms, part_source, crew_conflict
+                        from {q("ENGINE.ENG_WINDOW_CANDIDATE")}
+                        where component_id = ? and crew_certified
+                        order by start_day, crew_id""",
+                    params=[pick],
+                )
+                st.dataframe(cand, hide_index=True, width="stretch", height=300)
 
 # --------------------------------------------------------------------------- model
-with t_model, _degrade("The model evaluation"):
-    m = _run(
-        f"""select m.metric_scope, m.metric_name, m.metric_value, m.detail, r.run_id, r.trained_at
-            from {q("OPS.ML_METRIC")} m
-            join {q("OPS.ML_RUN")} r on r.run_id = m.run_id
-            where r.run_id = (select max(run_id) from {q("OPS.ML_RUN")}
-                              where model_name = 'RISK_CLASSIFIER')"""
-    )
-    if m.empty:
-        st.warning("No evaluation recorded. Run `just deploy-ml`.")
-    else:
+if NAV == MODEL:
+    with _degrade("The model evaluation"):
+        m = _run(
+            f"""select m.metric_scope, m.metric_name, m.metric_value, m.detail, r.run_id,
+                r.trained_at
+                from {q("OPS.ML_METRIC")} m
+                join {q("OPS.ML_RUN")} r on r.run_id = m.run_id
+                where r.run_id = (select max(run_id) from {q("OPS.ML_RUN")}
+                                  where model_name = 'RISK_CLASSIFIER')"""
+        )
+        if m.empty:
+            st.warning("No evaluation recorded. Run `just deploy-ml`.")
+        else:
 
-        def mv(scope: str, name: str):
-            s = m[(m.metric_scope == scope) & (m.metric_name == name)]["metric_value"]
-            return None if s.empty else float(s.iloc[0])
+            def mv(scope: str, name: str):
+                s = m[(m.metric_scope == scope) & (m.metric_name == name)]["metric_value"]
+                return None if s.empty else float(s.iloc[0])
 
-        st.subheader("Rule versus model — on held-out data")
-        st.caption(
-            f"Training run `{m.iloc[0]['run_id']}`. Figures are read from OPS, never typed (T-87)."
-        )
-        cmp = pd.DataFrame(
-            [
-                {
-                    "method": "Model (p ≥ 0.50)",
-                    "precision": mv("MODEL", "precision_components"),
-                    "recall": mv("MODEL", "recall_components"),
-                },
-                {
-                    "method": "Trivial rule — CMS band energy ≥ p95",
-                    "precision": mv("BL-TRIVIAL-THRESHOLD", "precision_components"),
-                    "recall": mv("BL-TRIVIAL-THRESHOLD", "recall_components"),
-                },
-                {
-                    "method": "Random, stratified",
-                    "precision": mv("BL-RANDOM-STRATIFIED", "precision_components"),
-                    "recall": mv("BL-RANDOM-STRATIFIED", "recall_components"),
-                },
-            ]
-        )
-        mp, rp = cmp.iloc[0]["precision"], cmp.iloc[1]["precision"]
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Model precision", f"{mp:.3f}" if mp is not None else "—")
-        c2.metric("Trivial rule precision", f"{rp:.3f}" if rp is not None else "—")
-        c3.metric(
-            "Advantage at equal recall",
-            f"{mp / rp:.2f}×" if mp and rp else "—",
-            help="Pass bar is 1.25× the rule and 3× random (T-10).",
-        )
-        st.altair_chart(
-            alt.Chart(cmp.melt("method", var_name="measure"))
-            .mark_bar()
-            .encode(
-                x=alt.X("value:Q", scale=alt.Scale(domain=[0, 1])),
-                y=alt.Y("method:N", title=None),
-                color="measure:N",
-                yOffset="measure:N",
-                tooltip=["method", "measure", "value"],
+            st.subheader(
+                "Rule versus model — on held-out data",
+                help="For developers only, not for customers.",
             )
-            .properties(height=220),
-            width="stretch",
-        )
-        st.dataframe(cmp, hide_index=True, width="stretch")
-
-        ind = _run(
-            f"""select metric_name, metric_value, detail from {q("OPS.ML_METRIC")}
-                where metric_scope = 'ANOMALY' and run_id = (
-                      select max(run_id) from {q("OPS.ML_RUN")}
-                      where model_name = 'ANOMALY_DETECTOR')"""
-        )
-        if not ind.empty:
-            rho = ind[ind.metric_name == "spearman_vs_risk"]["metric_value"]
-            st.subheader("Two signals, not one")
-            st.metric(
-                "Spearman ρ, risk vs anomaly",
-                f"{float(rho.iloc[0]):.3f}" if not rho.empty else "—",
-                help="Pre-registered bound |ρ| ≤ 0.50 (T-18). The reference solution's two "
-                "signals correlated at −1.0 by construction.",
+            st.caption(":material/info: For developers only, not for customers.")
+            st.caption(
+                f"Training run `{m.iloc[0]['run_id']}`. Figures are read from OPS, never "
+                f"typed (T-87)."
             )
+            cmp = pd.DataFrame(
+                [
+                    {
+                        "method": "Model (p ≥ 0.50)",
+                        "precision": mv("MODEL", "precision_components"),
+                        "recall": mv("MODEL", "recall_components"),
+                    },
+                    {
+                        "method": "Trivial rule — CMS band energy ≥ p95",
+                        "precision": mv("BL-TRIVIAL-THRESHOLD", "precision_components"),
+                        "recall": mv("BL-TRIVIAL-THRESHOLD", "recall_components"),
+                    },
+                    {
+                        "method": "Random, stratified",
+                        "precision": mv("BL-RANDOM-STRATIFIED", "precision_components"),
+                        "recall": mv("BL-RANDOM-STRATIFIED", "recall_components"),
+                    },
+                ]
+            )
+            mp, rp = cmp.iloc[0]["precision"], cmp.iloc[1]["precision"]
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Model precision", f"{mp:.3f}" if mp is not None else "—")
+            c2.metric("Trivial rule precision", f"{rp:.3f}" if rp is not None else "—")
+            c3.metric(
+                "Advantage at equal recall",
+                f"{mp / rp:.2f}×" if mp and rp else "—",
+                help="Pass bar is 1.25× the rule and 3× random (T-10).",
+            )
+            st.altair_chart(
+                alt.Chart(cmp.melt("method", var_name="measure"))
+                .mark_bar()
+                .encode(
+                    x=alt.X("value:Q", scale=alt.Scale(domain=[0, 1])),
+                    y=alt.Y("method:N", title=None),
+                    color="measure:N",
+                    yOffset="measure:N",
+                    tooltip=["method", "measure", "value"],
+                )
+                .properties(height=220),
+                width="stretch",
+            )
+            st.dataframe(cmp, hide_index=True, width="stretch")
+
+            ind = _run(
+                f"""select metric_name, metric_value, detail from {q("OPS.ML_METRIC")}
+                    where metric_scope = 'ANOMALY' and run_id = (
+                          select max(run_id) from {q("OPS.ML_RUN")}
+                          where model_name = 'ANOMALY_DETECTOR')"""
+            )
+            if not ind.empty:
+                rho = ind[ind.metric_name == "spearman_vs_risk"]["metric_value"]
+                st.subheader("Two signals, not one")
+                st.metric(
+                    "Spearman ρ, risk vs anomaly",
+                    f"{float(rho.iloc[0]):.3f}" if not rho.empty else "—",
+                    help="Pre-registered bound |ρ| ≤ 0.50 (T-18). The reference solution's two "
+                    "signals correlated at −1.0 by construction.",
+                )
 
 # --------------------------------------------------------------------------- fleet
-with t_fleet, _degrade("Fleet & contracts"):
-    ld = _run(
-        f"select * from {q('SERVING.MET_LD_EXPOSURE')} order by ld_exposure_run_rate_inr desc"
-    )
-    ld = ld[ld["site_code"].isin(sel_sites)] if not ld.empty else ld
-    if ld.empty:
-        st.warning("No serving views. Run `just deploy-engine`.")
-    else:
-        st.subheader("Contractual availability against the guarantee")
-        st.caption(
-            "Availability = available ÷ (period − exclusions). Grid, curtailment, force majeure, "
-            "balance of plant and scheduled maintenance are excluded; corrective repair is not. "
-            "LD exposure is a **run-rate** over the six-month window, not an invoice."
+if NAV == FLEET:
+    with _degrade("Fleet & contracts"):
+        ld = _run(
+            f"select * from {q('SERVING.MET_LD_EXPOSURE')} order by ld_exposure_run_rate_inr desc"
         )
-        k1, k2 = st.columns(2)
-        k1.metric("Fleet LD exposure (run-rate)", inr(ld["ld_exposure_run_rate_inr"].sum()))
-        k2.metric("Sites below guarantee", int((ld["shortfall_pct"] > 0).sum()))
-        st.altair_chart(
-            alt.Chart(ld)
-            .mark_bar()
-            .encode(
-                x=alt.X("availability_pct:Q", scale=alt.Scale(zero=False), title="availability %"),
-                y=alt.Y("site_name:N", sort="-x", title=None),
-                color=alt.condition(
-                    "datum.shortfall_pct > 0", alt.value("#d9534f"), alt.value("#29B5E8")
-                ),
-                tooltip=[
-                    "site_name",
-                    "availability_pct",
-                    "guarantee_pct",
-                    "ld_exposure_run_rate_inr",
+        ld = ld[ld["site_code"].isin(sel_sites)] if not ld.empty else ld
+        if ld.empty:
+            st.warning("No serving views. Run `just deploy-engine`.")
+        else:
+            st.subheader("Contractual availability against the guarantee")
+            st.caption(
+                "Availability = available ÷ (period − exclusions). Grid, curtailment, force "
+                "majeure, "
+                "balance of plant and scheduled maintenance are excluded; corrective repair "
+                "is not. "
+                "LD exposure is a **run-rate** over the six-month window, not an invoice."
+            )
+            k1, k2 = st.columns(2)
+            k1.metric("Fleet LD exposure (run-rate)", inr(ld["ld_exposure_run_rate_inr"].sum()))
+            k2.metric("Sites below guarantee", int((ld["shortfall_pct"] > 0).sum()))
+            st.altair_chart(
+                alt.Chart(ld)
+                .mark_bar()
+                .encode(
+                    x=alt.X(
+                        "availability_pct:Q", scale=alt.Scale(zero=False), title="availability %"
+                    ),
+                    y=alt.Y("site_name:N", sort="-x", title=None),
+                    color=alt.condition(
+                        "datum.shortfall_pct > 0", alt.value("#d9534f"), alt.value("#29B5E8")
+                    ),
+                    tooltip=[
+                        "site_name",
+                        "availability_pct",
+                        "guarantee_pct",
+                        "ld_exposure_run_rate_inr",
+                    ],
+                )
+                .properties(height=240),
+                width="stretch",
+            )
+            st.dataframe(
+                ld[
+                    [
+                        "site_name",
+                        "state",
+                        "turbines",
+                        "availability_pct",
+                        "guarantee_pct",
+                        "shortfall_pct",
+                        "ld_exposure_run_rate_inr",
+                    ]
                 ],
+                hide_index=True,
+                width="stretch",
             )
-            .properties(height=240),
-            width="stretch",
-        )
-        st.dataframe(
-            ld[
-                [
-                    "site_name",
-                    "state",
-                    "turbines",
-                    "availability_pct",
-                    "guarantee_pct",
-                    "shortfall_pct",
-                    "ld_exposure_run_rate_inr",
-                ]
-            ],
-            hide_index=True,
-            width="stretch",
-        )
 
-    oee = _run(
-        f"""select o.turbine_id, o.site_code, o.availability_factor, o.performance_factor,
-                   o.oee, o.is_underperforming, o.mean_yaw_error_deg, o.fleet_median_performance,
-                   o.oee_definition, l.lost_mwh_downtime, l.lost_mwh_underperformance,
-                   l.lost_mwh_total
-            from {q("SERVING.MET_TURBINE_OEE")} o
-            join {q("SERVING.MET_LOST_ENERGY")} l on l.turbine_id = o.turbine_id
-            order by o.performance_factor"""
-    )
-    if not oee.empty:
-        st.subheader("Turbine OEE — and what it catches that availability cannot")
-        # The definition is shown, not footnoted: this is our adaptation (ADR-0003).
-        st.caption(oee.iloc[0]["oee_definition"])
-        o1, o2, o3, o4 = st.columns(4)
-        o1.metric("Mean OEE (A × P)", f"{oee['oee'].mean():.1%}")
-        o2.metric("Mean availability factor", f"{oee['availability_factor'].mean():.1%}")
-        o3.metric(
-            "Fleet-median performance",
-            f"{float(oee.iloc[0]['fleet_median_performance']):.1%}",
-            help="Against the ideal power curve, so a healthy turbine reads about 96.5%.",
+        oee = _run(
+            f"""select o.turbine_id, o.site_code, o.availability_factor, o.performance_factor,
+                       o.oee, o.is_underperforming, o.mean_yaw_error_deg,
+                           o.fleet_median_performance,
+                       o.oee_definition, l.lost_mwh_downtime, l.lost_mwh_underperformance,
+                       l.lost_mwh_total
+                from {q("SERVING.MET_TURBINE_OEE")} o
+                join {q("SERVING.MET_LOST_ENERGY")} l on l.turbine_id = o.turbine_id
+                order by o.performance_factor"""
         )
-        o4.metric("Energy lost", f"{oee['lost_mwh_total'].sum():,.0f} MWh")
-
-        under = oee[oee["is_underperforming"]]
-        st.markdown(
-            f"**{len(under)} turbine(s) underperforming while available** — losing energy "
-            "while running, with no alarm raised. Availability alone would call them healthy."
-        )
-        st.dataframe(
-            under[
-                [
-                    "turbine_id",
-                    "site_code",
-                    "availability_factor",
-                    "performance_factor",
-                    "oee",
-                    "mean_yaw_error_deg",
-                    "lost_mwh_underperformance",
-                ]
-            ],
-            hide_index=True,
-            width="stretch",
-        )
-        # Degrades to a table that keeps the number (NFR-22): the scatter is extra.
-        st.altair_chart(
-            alt.Chart(oee)
-            .mark_circle(size=70)
-            .encode(
-                x=alt.X(
-                    "availability_factor:Q",
-                    scale=alt.Scale(zero=False),
-                    title="availability factor",
-                ),
-                y=alt.Y(
-                    "performance_factor:Q",
-                    scale=alt.Scale(zero=False),
-                    title="performance factor",
-                ),
-                color=alt.Color("is_underperforming:N", title="underperforming"),
-                tooltip=["turbine_id", "availability_factor", "performance_factor", "oee"],
+        if not oee.empty:
+            st.subheader("Turbine OEE — and what it catches that availability cannot")
+            # The definition is shown, not footnoted: this is our adaptation (ADR-0003).
+            st.caption(oee.iloc[0]["oee_definition"])
+            o1, o2, o3, o4 = st.columns(4)
+            o1.metric("Mean OEE (A × P)", f"{oee['oee'].mean():.1%}")
+            o2.metric("Mean availability factor", f"{oee['availability_factor'].mean():.1%}")
+            o3.metric(
+                "Fleet-median performance",
+                f"{float(oee.iloc[0]['fleet_median_performance']):.1%}",
+                help="Against the ideal power curve, so a healthy turbine reads about 96.5%.",
             )
-            .properties(height=260),
-            width="stretch",
-        )
+            o4.metric("Energy lost", f"{oee['lost_mwh_total'].sum():,.0f} MWh")
+
+            under = oee[oee["is_underperforming"]]
+            st.markdown(
+                f"**{len(under)} turbine(s) underperforming while available** — losing energy "
+                "while running, with no alarm raised. Availability alone would call them healthy."
+            )
+            st.dataframe(
+                under[
+                    [
+                        "turbine_id",
+                        "site_code",
+                        "availability_factor",
+                        "performance_factor",
+                        "oee",
+                        "mean_yaw_error_deg",
+                        "lost_mwh_underperformance",
+                    ]
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+            # Degrades to a table that keeps the number (NFR-22): the scatter is extra.
+            st.altair_chart(
+                alt.Chart(oee)
+                .mark_circle(size=70)
+                .encode(
+                    x=alt.X(
+                        "availability_factor:Q",
+                        scale=alt.Scale(zero=False),
+                        title="availability factor",
+                    ),
+                    y=alt.Y(
+                        "performance_factor:Q",
+                        scale=alt.Scale(zero=False),
+                        title="performance factor",
+                    ),
+                    color=alt.Color("is_underperforming:N", title="underperforming"),
+                    tooltip=["turbine_id", "availability_factor", "performance_factor", "oee"],
+                )
+                .properties(height=260),
+                width="stretch",
+            )
 
 # --------------------------------------------------------------------------- audit
-with t_audit, _degrade("The audit trail"):
-    st.subheader("Who decided what, when, and on what evidence")
-    st.caption(
-        "Every request to the ACTION procedures is appended here **before** anything "
-        "changes \u2014 refusals included. If this append fails, the write fails (ADR-0005). "
-        "Self-test rows from `just verify` are hidden."
-    )
-    aud = _fresh(
-        f"""select event_at, action_type, outcome, object_id, reason, actor_user, actor_role,
-                   on_behalf_of, idempotency_key, evidence
-            from {q("ACTION.AUD_ACTION")}
-            where not is_selftest
-            order by event_at desc limit 200"""
-    )
-    if aud.empty:
-        st.info(
-            "Nothing has been requested yet. Try suppressing an alarm or drafting a work order."
+if NAV == AUDIT:
+    with _degrade("The audit trail"):
+        st.subheader("Who decided what, when, and on what evidence")
+        st.caption(
+            "Every request to the ACTION procedures is appended here **before** anything "
+            "changes \u2014 refusals included. If this append fails, the write fails (ADR-0005). "
+            "Self-test rows from `just verify` are hidden."
         )
-    else:
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Requests", len(aud))
-        k2.metric("Applied", int((aud["outcome"] == "APPLIED").sum()))
-        k3.metric("Refused", int((aud["outcome"] == "REFUSED").sum()))
-        st.dataframe(aud, hide_index=True, width="stretch")
+        aud = _fresh(
+            f"""select event_at, action_type, outcome, object_id, reason, actor_user, actor_role,
+                       on_behalf_of, idempotency_key, evidence
+                from {q("ACTION.AUD_ACTION")}
+                where not is_selftest
+                order by event_at desc limit 200"""
+        )
+        if aud.empty:
+            st.info(
+                "Nothing has been requested yet. Try suppressing an alarm or drafting a work order."
+            )
+        else:
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Requests", len(aud))
+            k2.metric("Applied", int((aud["outcome"] == "APPLIED").sum()))
+            k3.metric("Refused", int((aud["outcome"] == "REFUSED").sum()))
+            st.dataframe(aud, hide_index=True, width="stretch")
 
 # --------------------------------------------------------------------------- assistant
 # Last, so every tab has registered its selection. Draws into the sidebar slot.
