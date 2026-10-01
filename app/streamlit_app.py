@@ -412,14 +412,20 @@ filtered_note = (
 
 # Styling only: a sticky header holding the navigation, and one compact card
 # look shared by every metric tile, so the dashboard reads the same everywhere.
+# The sticky bar needs an opaque background matching the active theme.
+try:
+    _dark = st.context.theme.type == "dark"
+except Exception:
+    _dark = False
+_nav_bg = "#0e1117" if _dark else "#ffffff"
 st.markdown(
-    """<style>
-    .st-key-topnav { position: sticky; top: 3.75rem; z-index: 999;
-        background: var(--background-color, #fff); padding: 0.25rem 0 0.5rem;
-        border-bottom: 1px solid rgba(128,128,128,0.25); }
-    [data-testid="stMetricLabel"] p { font-size: 0.8rem; }
-    [data-testid="stMetricValue"] { font-size: 1.35rem; }
-    [data-testid="stMetricDelta"] { font-size: 0.75rem; }
+    f"""<style>
+    .st-key-topnav {{ position: sticky; top: 3.75rem; z-index: 999;
+        background: {_nav_bg}; padding: 0.25rem 0 0.5rem;
+        border-bottom: 1px solid rgba(128,128,128,0.25); }}
+    [data-testid="stMetricLabel"] p {{ font-size: 0.8rem; }}
+    [data-testid="stMetricValue"] {{ font-size: 1.35rem; }}
+    [data-testid="stMetricDelta"] {{ font-size: 0.75rem; }}
     </style>""",
     unsafe_allow_html=True,
 )
