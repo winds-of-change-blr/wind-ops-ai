@@ -105,3 +105,7 @@ resolves `Q-18` in favour of committing to that KPI.
 | `FR-32` suppression guards | `T-29`, `T-30`, **`T-60`** |
 | `FR-67`, `FR-68` noise metrics and the anti-gaming pairing | `T-70` |
 | **No seeded real failure suppressed or dismissed** | **`T-60` — gating, zero tolerance** |
+
+## Amendment — 2026-10-01 (UI)
+
+At the product owner's request the Command Center no longer displays the compression ratio or the real-failures-suppressed count. The pairing still holds where it matters: `ENGINE.ENG_ALARM_FUNNEL` publishes both, and the gating assertions `T-60` and `T-70` still enforce zero suppressed real failures on every `just verify`. The undetermined rate is still published (`T-61`), now inside the Actionable card.
