@@ -1,0 +1,63 @@
+{
+  "tools": [
+    "get_approved_work_order",
+    "file_work_order_issue"
+  ],
+  "calls": [
+    {
+      "tool": "get_approved_work_order",
+      "work_order_id": "dd77c8bc-e4a0-474e-aaba-bb4fac9ca012",
+      "result": {
+        "approved_at": "2026-10-02 01:37:26.838",
+        "approved_by": "JVPAN0816",
+        "approved_role": "WOA_ADMIN",
+        "audit_id": "c1ae54bf-5ead-477c-8530-d1c5015d663f",
+        "component_class_name": "Main Shaft & Bearing",
+        "component_id": "TN-TVL-T06-MSB",
+        "expected_loss_inr": 3172990,
+        "is_selftest": false,
+        "on_behalf_of": "Niraj Kumar (NK)",
+        "part_number": "PT-MSB-BEAR",
+        "procedure_doc_id": "VWS-MP-MSB-003",
+        "risk_band": "HIGH",
+        "risk_probability": 0.999855,
+        "site_code": "TN-TVL",
+        "status": "APPROVED_NOT_SCHEDULED",
+        "top_drivers": "THERMAL_RISE RISING, PRIMARY_VS_OWN_BASELINE RISING, TREND_30D RISING",
+        "turbine_id": "TN-TVL-T06",
+        "work_order_id": "dd77c8bc-e4a0-474e-aaba-bb4fac9ca012",
+        "fileable": true,
+        "refusal": null
+      }
+    },
+    {
+      "tool": "file_work_order_issue",
+      "work_order_id": "dd77c8bc-e4a0-474e-aaba-bb4fac9ca012",
+      "result": {
+        "outcome": "ALREADY_FILED",
+        "work_order_id": "dd77c8bc-e4a0-474e-aaba-bb4fac9ca012",
+        "number": 27,
+        "url": "https://github.com/winds-of-change-blr/wind-ops-ai/issues/27"
+      }
+    },
+    {
+      "tool": "file_work_order_issue",
+      "work_order_id": "dd77c8bc-e4a0-474e-aaba-bb4fac9ca012",
+      "result": {
+        "outcome": "ALREADY_FILED",
+        "work_order_id": "dd77c8bc-e4a0-474e-aaba-bb4fac9ca012",
+        "number": 27,
+        "url": "https://github.com/winds-of-change-blr/wind-ops-ai/issues/27"
+      }
+    },
+    {
+      "tool": "file_work_order_issue",
+      "work_order_id": "df589594-3ee6-4b0c-9f17-10fcfe9a52ce",
+      "result": {
+        "outcome": "REFUSED",
+        "work_order_id": "df589594-3ee6-4b0c-9f17-10fcfe9a52ce",
+        "reason": "this is a verify self-test row, not a real approval"
+      }
+    }
+  ]
+}

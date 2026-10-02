@@ -24,19 +24,22 @@ A skill is done when:
 - [ ] It works on a fresh account, with no hidden dependency on our data
 - [ ] It is listed in [the CoCo usage plan](../docs/06-coco/coco-usage-plan.md)
 
-## Candidates
+## Published
 
-See [coco-usage-plan.md §4](../docs/06-coco/coco-usage-plan.md) for the shortlist:
-`alarm-noise-triage`, `synthetic-plant-iot-data`, `oee-semantic-view-builder`,
-`maintenance-root-cause`, `approval-gated-agent-tools`, `maintenance-schedule-planner`,
-`coco-evidence-logger`.
+| Skill | One line | Real output | Teammate test (T-19) |
+| --- | --- | --- | --- |
+| [`approval-gated-agent-tools`](approval-gated-agent-tools/SKILL.md) | An agent proposes; only a human role applies, through guarded, idempotent, audited procedures | [EXAMPLE](approval-gated-agent-tools/EXAMPLE.md) | [pending](approval-gated-agent-tools/TEST.md) |
+| [`alarm-noise-triage`](alarm-noise-triage/SKILL.md) | Alarm stream to classified incidents, with "real failures hidden" always beside compression | [EXAMPLE](alarm-noise-triage/EXAMPLE.md) | [pending](alarm-noise-triage/TEST.md) |
+| [`semantic-view-audit`](semantic-view-audit/SKILL.md) | Coverage and fix list for a semantic view before Analyst relies on it | [EXAMPLE](semantic-view-audit/EXAMPLE.md) | [pending](semantic-view-audit/TEST.md) |
 
-## Open question
+Each skill takes object names as inputs and depends on nothing in our data. Each `TEST.md` builds
+its own scratch fixture, so it runs on a fresh account.
 
-**Where do these get published?** The bonus rewards skills *other teams can reuse*, but this
-repository is private (`Q-8` in the [RAID log](../docs/08-delivery/raid-log.md)). Either
-publish to a separate public repository or make this one public at submission — decide early,
-because it changes how much project-specific detail belongs in each skill.
+**Where they are published:** here. The repository is public, which closes `Q-8`. To use one, copy
+the folder into your workspace's `skills/` or into `~/.snowflake/cortex/skills/`, or invoke it by path.
+
+Backlog, not shipped: `synthetic-degradation-data` and `metric-parity-check` (see
+[coco-usage-plan §5](../docs/06-coco/coco-usage-plan.md)).
 
 ## Discovery path
 
