@@ -27,4 +27,4 @@ account where they hold a role that can create a database.
 
 | Run by | Date | Session id | 1 | 2 | 3 | 4 | 5 | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| *pending — JP (T-19)* | | | | | | | | |
+| JP (Jeevitha P) | 2026-10-02 | `1a36e460-4f53-47db-bfc8-052cc16e89c0` (continued session, not fresh) | Pass | Pass, after fix | Pass | Pass | Pass | **Defect found and fixed.** As written, step 2.2's `is_role_in_session('SKT_APPROVER')` refused the real approver, because inside `EXECUTE AS OWNER` it sees the owner, not the caller. A probe proc returned identical results for approver and outsider. With the check removed and USAGE as the control: 30 % REFUSED + audited; 10 % applied once, repeat returned the same `applied_id` as DUPLICATE; agent INSERT failed on privileges; agent holds 0 grants; 0 future grants. Cleanup done (6). SKILL.md step 2.2 corrected. | |

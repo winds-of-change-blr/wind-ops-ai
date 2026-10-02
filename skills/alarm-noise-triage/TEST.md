@@ -24,4 +24,4 @@ Run by a teammate who did **not** write the skill (T-19), in a fresh CoCo sessio
 
 | Run by | Date | Session id | 1 | 2 | 3 | 4 | 5 | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| *pending — JP (T-19)* | | | | | | | | |
+| JP (Jeevitha P) | 2026-10-02 | `1a36e460-4f53-47db-bfc8-052cc16e89c0` (continued session, not fresh) | Pass | Pass | Pass | Pass | Pass | Fixture `SKILLTEST_JP.ALARMS` built to the prompt (2,000 alarms, 10 pumps, 30 days; dropped afterwards). Summary: `2000 alarms → 1490 incidents (1.3× compression); 0 nuisance, 1437 undetermined, 20 safety-critical; real failures hidden: 0`. All 20 `HIGH_PRESSURE_TRIP` incidents ACTIONABLE (80 trips, all auto-reset); 6/6 precursor incidents ACTIONABLE; 150 chattering incidents UNDETERMINED with reason "missing evidence"; 5,960 evidence rows = 1,490 incidents × 4 channels, all unique. |

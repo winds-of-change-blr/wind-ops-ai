@@ -28,9 +28,9 @@ A skill is done when:
 
 | Skill | One line | Real output | Teammate test (T-19) |
 | --- | --- | --- | --- |
-| [`approval-gated-agent-tools`](approval-gated-agent-tools/SKILL.md) | An agent proposes; only a human role applies, through guarded, idempotent, audited procedures | [EXAMPLE](approval-gated-agent-tools/EXAMPLE.md) | [pending](approval-gated-agent-tools/TEST.md) |
-| [`alarm-noise-triage`](alarm-noise-triage/SKILL.md) | Alarm stream to classified incidents, with "real failures hidden" always beside compression | [EXAMPLE](alarm-noise-triage/EXAMPLE.md) | [pending](alarm-noise-triage/TEST.md) |
-| [`semantic-view-audit`](semantic-view-audit/SKILL.md) | Coverage and fix list for a semantic view before Analyst relies on it | [EXAMPLE](semantic-view-audit/EXAMPLE.md) | [pending](semantic-view-audit/TEST.md) |
+| [`approval-gated-agent-tools`](approval-gated-agent-tools/SKILL.md) | An agent proposes; only a human role applies, through guarded, idempotent, audited procedures | [EXAMPLE](approval-gated-agent-tools/EXAMPLE.md) | [passed 2026-10-02, after a fix](approval-gated-agent-tools/TEST.md) |
+| [`alarm-noise-triage`](alarm-noise-triage/SKILL.md) | Alarm stream to classified incidents, with "real failures hidden" always beside compression | [EXAMPLE](alarm-noise-triage/EXAMPLE.md) | [passed 2026-10-02](alarm-noise-triage/TEST.md) |
+| [`semantic-view-audit`](semantic-view-audit/SKILL.md) | Coverage and fix list for a semantic view before Analyst relies on it | [EXAMPLE](semantic-view-audit/EXAMPLE.md) | [passed 2026-10-02](semantic-view-audit/TEST.md) |
 
 Each skill takes object names as inputs and depends on nothing in our data. Each `TEST.md` builds
 its own scratch fixture, so it runs on a fresh account.
