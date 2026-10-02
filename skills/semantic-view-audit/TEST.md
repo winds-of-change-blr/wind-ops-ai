@@ -24,4 +24,4 @@ CoCo to create a 2-table semantic view over `SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.ORDE
 
 | Run by | Date | Session id | 1 | 2 | 3 | 4 | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| *pending — JP (T-19)* | | | | | | | |
+| JP (Jeevitha P) | 2026-10-02 | `1a36e460-4f53-47db-bfc8-052cc16e89c0` (continued session, not fresh) | Pass | Pass | Pass | Pass | Run on `WIND_OPS_AI.SERVING.SV_WIND_OPS`. Coverage matches `DESCRIBE` (452 rows): 10 tables (10 described, 10 with synonyms), 32 dimensions (32 / 5 / **0 sample values**), 22 facts (22 / 0 / 0), 15 metrics (15 / 1 / 0), 10 relationships, 0 orphans. 0 verified queries reported as a finding. 11 VARCHAR filter dimensions ≤ 50 distinct with no sample values, e.g. `INCIDENT_CLASS` 3, `SEVERITY` 3, `RISK_BAND` 2, `ALARM_CODE` 24. 3 thin descriptions (< 25 chars). Read-only; no DDL. |

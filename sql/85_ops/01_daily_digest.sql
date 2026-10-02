@@ -109,6 +109,9 @@ use role WOA_ADMIN;
 
 -- --- the task ----------------------------------------------------------------
 -- 05:30 IST: before the 06:00 RMC shift handover the digest is written for.
+-- Suspend first: ownership of a started task cannot move (091421), so without this a
+-- second deploy fails. WOA_ADMIN inherits WOA_SCHEDULER; it is resumed below.
+alter task if exists OPS.T_DAILY_DIGEST suspend;
 create task if not exists OPS.T_DAILY_DIGEST
     warehouse = WOA_BUILD_WH
     schedule = 'USING CRON 30 5 * * * Asia/Kolkata'

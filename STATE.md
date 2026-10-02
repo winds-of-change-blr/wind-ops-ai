@@ -1,6 +1,6 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-10-02 · **by:** NK · **CoCo session:** `42a370d2-a657-4283-8984-94dac6f03a8a`
+> **Last updated:** 2026-10-02 · **by:** JP · **CoCo session:** `1a36e460-4f53-47db-bfc8-052cc16e89c0`
 > **Plan day:** D15 · **Deployment: one team database `WIND_OPS_AI` on `JKDRJBB-MW27072`** (no personal clones; `just` refuses any other account) · **Branch:** `main`
 > **The app exists:** `WIND_OPS_AI.APP.WOA_COMMAND_CENTER` on `JKDRJBB-MW27072` — Snowsight › Projects › Streamlit
 > **The agent exists:** `WIND_OPS_AI.GEN.WOA_OPS_AGENT` — in Snowflake Intelligence (ai.snowflake.com) for `WOA_RMC`/`WOA_PLANNER`, and as the app's ask box
@@ -36,7 +36,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| NK | E5 ingenuity: 3 skills (NFR-13), scheduled digest (`T-76`, `T-77`, `Q-78`), `woa-github` MCP (`T-79`), over-claim fixes, README evaluator map | `feat/nk/coco-ingenuity` | 2026-10-02 | PR open; `T-19` teammate skill tests pending (JP) |
+| JP | `T-19` teammate tests of the 3 skills (all pass; one skill defect fixed); full `just deploy` refresh; `deploy-ops` made re-runnable | `fix/jp/t19-skills-and-refresh` | 2026-10-02 | PR open |
 
 ## 3. Next actions, in order
 
@@ -49,8 +49,8 @@ is in the app (NK, #22) and `testing/01` exists (NK, #23); README, walkthrough s
 2. **Record the walkthrough** (`T-90`) from [`walkthrough.md`](docs/08-delivery/walkthrough.md).
 3. **`T-89`** — someone who did not write the README follows it from a clean clone into their own
    account (`WOA_ACCOUNT=<ORG>-<ACCOUNT>`).
-4. **Re-run `just deploy` within 48 h of the demo.** `T-11` freshness is **failing now** (63 h on 2026-10-02, testing 02). `deploy` now includes `deploy-ops`.
-5. **`T-19`** (JP): run each `skills/*/TEST.md` in a fresh session and fill in its record row.
+4. **Re-run `just deploy` within 48 h of the demo.** Refreshed 2026-10-02 by JP: `just verify` 77/77, 0 failing. It goes stale again after 48 h.
+5. **`approved_role` / role checks:** inside `EXECUTE AS OWNER`, `is_role_in_session('WOA_PLANNER')` and `('WOA_RMC')` are **always true** because the owner `WOA_ADMIN` inherits both (proved 2026-10-02, `skills/approval-gated-agent-tools/TEST.md`). Callers are still limited correctly by procedure `USAGE` grants; the in-procedure checks are dead code. Decide whether to remove them or replace them with a caller-identity argument.
 
 Then: verified queries for `VQ-1`, `VQ-4`, `VQ-5`, `VQ-7`,
 `VQ-8`; `T-74` incident decision paths; `T-73` free-text constraints; `approved_role` records the procedure owner, not the caller (development 14);
