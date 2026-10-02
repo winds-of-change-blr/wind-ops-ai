@@ -1,6 +1,6 @@
 # ADR-0019 — Automation and notification split
 
-> **Status:** Accepted · **Owner:** NK · **Last updated:** 2026-09-18 ·
+> **Status:** Accepted · **Owner:** NK · **Last updated:** 2026-10-02 ·
 > **Related:** [ADR-0005](adr-0005-approval-gated-writes.md), [ADR-0001](README.md#adr-0001--snowflake-native-single-account)
 
 ---
@@ -92,6 +92,18 @@ not in Slack, which is marginally less impressive than if it were — and saying
 faking it.
 
 **What this rules out.** Any automated path to a write, in any form, including a deferred one.
+
+## As built (2026-10-02)
+
+- **Automation:** `OPS.T_DAILY_DIGEST`, 05:30 IST, **owned by `WOA_SCHEDULER`**, so it runs with
+  that role's grants and no human's. That answers `Q-78` without `ALTER USER`. It writes only
+  `OPS.OPS_DIGEST`. `WOA_PLANNER`, `WOA_RMC` and `WOA_APP` can SELECT it, but no app panel shows it yet, and it is **not delivered** server-side
+  yet (`FR-83`): no notification integration exists on the account. Gated by `T-76` (gating) and
+  `T-77` ([execution 02](../../06-coco/evidence/execution/02-scheduled-digest.md)).
+- **MCP:** built as `woa-github`, a local stdio server in Cortex Code Desktop, not as a Slack
+  notification. It files a GitHub issue for an approved, audited work order and refuses anything
+  else. It reads through the read-only `ACTION.SP_GET_WORK_ORDER`, so `T-33` still holds.
+  Interactive only, as decided above ([development 14](../../06-coco/evidence/development/14-github-mcp.md)).
 
 ## Compliance
 

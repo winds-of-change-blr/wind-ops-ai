@@ -16,9 +16,9 @@ One folder per phase. **One file per session** — never append to an existing e
 | Phase | Folder | Status |
 | --- | --- | --- |
 | Planning | [planning/](planning/) | **Complete** — 2 entries |
-| Development | [development/](development/README.md) | **In progress** — 5 entries |
-| Execution | [execution/](execution/README.md) | Not started |
-| Testing | [testing/](testing/README.md) | **In progress** — 1 entry |
+| Development | [development/](development/README.md) | **In progress** — 14 entries |
+| Execution | [execution/](execution/README.md) | **In progress** — 2 entries, one of them a scheduled run |
+| Testing | [testing/](testing/README.md) | **In progress** — 2 entries |
 
 ## Entry format
 
@@ -90,4 +90,16 @@ select 'warehouse', sum(credits_used)
 | 05 | Development | [03-synthetic-data-generator.md](development/03-synthetic-data-generator.md) | 2026-09-25 | The six-stage generator (`US-2`…`US-7`, `US-52`) and the `OPS` assertion suite — 13 SQL files, 2,904 lines, 108M signal rows, 16/16 assertions passing. Found the deploy account **empty** and entry 04's seed script **unrunnable**; `T-8` failed twice before the bad-batch population fixed it; `just seed` and `just verify` implemented |
 | 06 | Development | [04-risk-classifier.md](development/04-risk-classifier.md) | 2026-09-25 | The ML layer (`US-18`…`US-21`) — 8 SQL files, 1,549 lines. **`T-10` passes**: 1.40x the trivial rule's precision at a matched budget, and 0.35–0.71 vs 0.00 component recall at a tight one. Baselines **pre-registered in their own commit before training**. Found `COMPONENT_ID` being used as a feature, a lead-time measurement artifact, and that Snowflake does not enforce primary keys |
 | 07 | Development | [05-t10-margin-and-operating-point.md](development/05-t10-margin-and-operating-point.md) | 2026-09-25 | Closes `Q-60` and `Q-53`. **Corrects entry 06's headline**: three successive metric defects, each flattering a different side. The real result is model precision 1.000 vs rule 0.586 at identical recall — 1.71x, stable to zero spread over five retrainings. New `DQ-STABILITY` stops a lucky run being quoted |
+| 08 | Development | [06-anomaly-detector.md](development/06-anomaly-detector.md) | 2026-09-25 | The anomaly detector, and the guard that found something else |
+| 09 | Development | [07-app-and-prerequisites.md](development/07-app-and-prerequisites.md) | 2026-09-26 | The app, and everything it needed first |
+| 10 | Development | [08-semantic-view-docs-and-agent.md](development/08-semantic-view-docs-and-agent.md) | 2026-09-26 | The semantic view, the documents, and a read-only agent |
+| 11 | Development | [09-approval-gated-writes.md](development/09-approval-gated-writes.md) | 2026-09-26 | Approval-gated writes, and the test that passed the wrong way |
+| 12 | Development | [10-numbers-and-clean-builds.md](development/10-numbers-and-clean-builds.md) | 2026-09-26 | The numbers, the missing performance signal, and two clean builds |
+| 13 | Development | [11-window-engine.md](development/11-window-engine.md) | 2026-09-26 | The maintenance-window engine |
+| 14 | Development | [12-incident-evidence.md](development/12-incident-evidence.md) | 2026-09-26 | Incident evidence and the `UNDETERMINED` queue |
+| 15 | Execution | [01-full-deploy-and-submission-surface.md](execution/01-full-deploy-and-submission-surface.md) | 2026-09-29 | A full deploy through `just`, forced by a failing freshness gate; the submission surface |
+| 16 | Development | [13-reusable-skills.md](development/13-reusable-skills.md) | 2026-10-02 | Three published skills (`approval-gated-agent-tools`, `alarm-noise-triage`, `semantic-view-audit`) with real output; `T-19` pending |
+| 17 | Development | [14-github-mcp.md](development/14-github-mcp.md) | 2026-10-02 | `woa-github` MCP connector: approved work order to GitHub issue [#27](https://github.com/winds-of-change-blr/wind-ops-ai/issues/27); refuses drafts and self-tests; idempotent |
+| 18 | Execution | [02-scheduled-digest.md](execution/02-scheduled-digest.md) | 2026-10-02 | **Scheduled run:** `OPS.T_DAILY_DIGEST` as `WOA_SCHEDULER` (`Q-78` closed), 4 new gates pass; CoCo agent-task automation not built (no CLI) |
 | — | Testing | [testing/01-adversarial-and-degraded.md](testing/01-adversarial-and-degraded.md) | 2026-09-27 | `scripts/agent_adversarial.py` + `just agent-suite`: 10 adversarial probes as `WOA_RMC`, all safe, `ACTION` untouched, agent figures equal the metric views. Degraded-mode drills found a raw traceback (`T-45` FAIL) and a silently swallowed agent error; both fixed and re-drilled. `pytest` is still template placeholders |
+| — | Testing | [testing/02-reverify-after-ingenuity.md](testing/02-reverify-after-ingenuity.md) | 2026-10-02 | `just check` passes; every gate suite passes except `T-11` freshness (63 h, needs the scheduled pre-demo `just deploy`) |

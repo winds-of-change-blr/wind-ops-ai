@@ -107,7 +107,7 @@ Scheduling is additive, never load-bearing.
 | --- | --- |
 | Planning | [Evidence entry](../06-coco/evidence/planning/01-plan-generation.md) with **session ID, request IDs, token and credit figures from `ACCOUNT_USAGE`** |
 | Development | Entry per meaningful session, same format |
-| Execution | Setup and scoring run from the **CLI**, verifiable in `CORTEX_CODE_CLI_USAGE_HISTORY` |
+| Execution | Full deploy and verify driven from **CoCo Desktop** through `just` ([execution 01](../06-coco/evidence/execution/01-full-deploy-and-submission-surface.md)), plus a **scheduled run**: `OPS.T_DAILY_DIGEST` as `WOA_SCHEDULER` ([execution 02](../06-coco/evidence/execution/02-scheduled-digest.md)). We did not use the CoCo CLI; `CORTEX_CODE_CLI_USAGE_HISTORY` has no rows for this account, and we do not claim it |
 | Testing | The gating suite and adversarial prompts authored through CoCo |
 
 **Differentiator most teams will miss:** our evidence is tied to **server-side telemetry Snowflake
@@ -118,8 +118,18 @@ itself holds**, not self-reported prose. A judge can verify the session happened
 Seven capabilities, each CLAIMED or DECLINED with a reason:
 [coco-usage-plan.md §4](../06-coco/coco-usage-plan.md#4-ingenuity--e5).
 
-Four skills published during the build, not after. Multi-agent **declined with a stated reason** —
-deliberate judgement beats a fragile demonstration.
+What ships, each with a test or a recorded run:
+
+- **Three skills** in [`skills/`](../../skills): `approval-gated-agent-tools`, `alarm-noise-triage`,
+  `semantic-view-audit`. Each has a real-output `EXAMPLE.md`; the teammate test (`T-19`) is
+  recorded in each `TEST.md` and is pending where not yet run.
+- **Automation:** a daily Snowflake task owned by `WOA_SCHEDULER` writes the shift digest and is gated
+  by four assertions in `just verify`. A CoCo *agent-task* automation was **not** built: the
+  `cortex` CLI that creates one is not installed on our machines.
+- **MCP:** one local stdio connector, `woa-github`, files a GitHub issue from an approved, audited
+  work order and refuses anything else. Interactive only, because the trial account has no external access.
+- **Surfaces:** CoCo Desktop, Snowflake Intelligence and the Streamlit app, plus GitHub through MCP.
+- Multi-agent is **declined with a stated reason**. Deliberate judgement beats a fragile demonstration.
 
 ### E6 — Impact
 
@@ -170,7 +180,7 @@ written on D15 from `OPS`, not composed by hand.
 | --- | --- | --- |
 | `E8` Design | **Amber** | Visual appeal is our thinnest dimension and the platform ceiling is now a *chosen* constraint ([`ADR-0020`](../03-architecture/decisions/adr-0020-app-platform.md), `R-29`). The funnel and the one reusable evidence panel are the mitigation |
 | `E9` Execution | **Amber-green** | Depends on the results summary actually being generated (`T-92`), the **aggregate outcome sentence reconciling** (`T-95`), and the **cold external scoring run on D14** (`US-97`) surfacing gaps while there is still a day to fix them |
-| `E5` Ingenuity | **Green** | Four skills, automation, MCP, four surfaces, one honest decline |
+| `E5` Ingenuity | **Green** | Three skills (teammate test `T-19` pending), a scheduled digest, one MCP connector, three Snowflake surfaces plus GitHub, one honest decline. No CoCo CLI and no CoCo-side scheduled automation |
 | `E4` Lifecycle | **Green** | Planning complete with verifiable IDs; three phases pending by definition |
 | `E6` Impact | **Green** | Contractual money, four beneficiaries |
 | `E7` Creativity | **Green** | Five original elements, three of them demo-visible |
@@ -212,7 +222,7 @@ Figures live in [`results.md`](results.md), never here.
 | `E2` Technical execution | *Is the model real?*: model vs rule vs random on held-out data; *Alarms*: guard checklist | `ML.RISK_CLASSIFIER`, `OPS.ML_METRIC`, `ACTION.SP_APPROVE_SUPPRESSION` | `T-10` margin over the rule, `T-87`/`T-94` same run as displayed, `T-60` guards, `T-33`/`T-47` no agent writes |
 | `E3` Completeness | Alarms → Risk triage → evidence panel → work order → planning window → Audit, in one app | [dataflow-as-built](../03-architecture/dataflow-as-built.md) | `T-86` every alarm in exactly one incident, `T-71`/`T-31` windows re-derived from source |
 | `E4` CoCo lifecycle | — | [evidence/](../06-coco/evidence/README.md): planning, development 01–12, execution 01, testing 01 | Session IDs in `ACCOUNT_USAGE.CORTEX_CODE_*_USAGE_HISTORY` |
-| `E5` CoCo ingenuity | — | [`skills/`](../../skills), `just agent-suite`, [coco-usage-plan §4](../06-coco/coco-usage-plan.md#4-ingenuity--e5) | Testing evidence 01 (adversarial agent probes) |
+| `E5` CoCo ingenuity | — | [`skills/`](../../skills), [`mcp/woa_github`](../../mcp/woa_github/server.py), [`sql/85_ops`](../../sql/85_ops/01_daily_digest.sql), `just agent-suite`, [coco-usage-plan §4](../06-coco/coco-usage-plan.md#4-ingenuity--e5) | Development 13 (skills), 14 (MCP); execution 02 (scheduled digest); testing 01 (adversarial probes) |
 | `E6` Impact | *Risk triage*: expected loss covered by planned work, cranes saved | `ENGINE.ENG_WINDOW_CANDIDATE` | `T-75` impact reconciles |
 | `E7` Creativity | *Alarms*: **UNDETERMINED** with its published rate; compression beside real-failures-suppressed | `ENGINE.ENG_INCIDENT_EVIDENCE`, `ENGINE.ENG_OPERATOR_QUEUE` | `T-61`, `T-68`, `T-70` |
 | `E8` Design | The funnel; one "why" panel reused across alarms and risk; degraded states instead of tracebacks | `app/streamlit_app.py` | `T-45`/`T-98` degraded-mode drills (testing 01) |

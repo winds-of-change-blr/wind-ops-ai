@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "woa-github": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--quiet", "--with", "mcp>=1.2,<2", "python", "mcp/woa_github/server.py"],
+      "cwd": "${WOA_REPO_DIR}",
+      "env": {
+        "WOA_SNOW_CONNECTION": "jkdrjbb-mw27072",
+        "WOA_DATABASE": "WIND_OPS_AI",
+        "WOA_GITHUB_REPO": "winds-of-change-blr/wind-ops-ai"
+      },
+      "timeout": 180000
+    }
+  }
+}

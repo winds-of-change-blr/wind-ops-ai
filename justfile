@@ -149,7 +149,7 @@ deploy: _resolve-db
     # failing gate on screen. T-52 runs this twice into a clean database.
     set -euo pipefail
     j="just"
-    for step in deploy-foundation deploy-data seed deploy-ml deploy-engine deploy-agent deploy-action deploy-app verify; do
+    for step in deploy-foundation deploy-data seed deploy-ml deploy-engine deploy-agent deploy-action deploy-app deploy-ops verify; do
         printf '\n\n##### %s #####\n' "$step"
         $j "$step"
     done
@@ -190,7 +190,7 @@ deploy-foundation: _resolve-db
 # This deploys the CODE. It writes no fact rows — run `just seed` for that, then
 # `just verify`. Keeping the two apart is what lets `just update` re-apply a
 # changed procedure without touching 108M rows of generated data.
-[doc('GEN/RAW/CURATED/SERVING: generator, tables, dynamic table, semantic view')]
+[doc('GEN/RAW/CURATED/SERVING: generator, tables, semantic view (no dynamic table yet)')]
 [group('snowflake')]
 deploy-data: _resolve-db
     #!/usr/bin/env bash
@@ -406,7 +406,29 @@ verify: _resolve-db
     printf '\n=== G4: the plan is never invented (T-71, T-31 gating; T-72, T-74, T-75) ===\n'
     {{snow_sql}} -f "{{sql_dir}}/15_quality/16_run_verify_planning.sql" -D "database={{database}}"
 
+    printf '\n=== Automation: the digest runs as WOA_SCHEDULER, never applies (T-76 gating, T-77) ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/17_run_verify_ops.sql" -D "database={{database}}"
+
     printf '\nverify passed against %s.\n' "{{database}}"
+
+# OPS: the daily digest task, owned by and run as WOA_SCHEDULER (Q-78, T-76, T-77).
+# Needs deploy-engine (it reads ENGINE). Executes the task once so the gate
+# has a real run to check instead of waiting for 05:30 IST.
+[doc('OPS: the scheduled daily risk & alarm digest (T-76/T-77) and its gate')]
+[group('snowflake')]
+deploy-ops: _resolve-db
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'database   : %s\n' "{{database}}"
+    printf 'connection : %s\n\n' "{{connection}}"
+    for f in 85_ops/01_daily_digest 15_quality/09_ops_assertions; do
+        printf '\n=== %s ===\n' "$f"
+        {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
+    done
+    # EXECUTE TASK is asynchronous; give the run time to land in TASK_HISTORY.
+    sleep 45
+    printf '\n=== gate on the automation assertions ===\n'
+    {{snow_sql}} -f "{{sql_dir}}/15_quality/17_run_verify_ops.sql" -D "database={{database}}"
 
 # ACTION: the approval procedures — the ONLY write path (ADR-0005, M10).
 # Implements: FR-32, FR-34..FR-37 · gated by 15_quality/14 (T-29, T-33, T-35 gating)
@@ -419,7 +441,7 @@ deploy-action: _resolve-db
     set -euo pipefail
     printf 'database   : %s\n' "{{database}}"
     printf 'connection : %s\n\n' "{{connection}}"
-    for f in 60_docs/03_part_procedure 50_action/01_action_tables 50_action/02_action_procedures 50_action/03_action_grants 50_action/04_planning_procedures 15_quality/06_action_assertions 15_quality/08_planning_assertions; do
+    for f in 60_docs/03_part_procedure 50_action/01_action_tables 50_action/02_action_procedures 50_action/03_action_grants 50_action/04_planning_procedures 50_action/05_read_procedures 15_quality/06_action_assertions 15_quality/08_planning_assertions; do
         printf '\n=== %s ===\n' "$f"
         {{snow_sql}} -f "{{sql_dir}}/${f}.sql" -D "database={{database}}"
     done

@@ -1,7 +1,7 @@
 # Current state — read this first, update it last
 
-> **Last updated:** 2026-09-29 · **by:** JP · **CoCo session:** `1a36e460-4f53-47db-bfc8-052cc16e89c0`
-> **Plan day:** D12 · **Deployment: one team database `WIND_OPS_AI` on `JKDRJBB-MW27072`** (no personal clones; `just` refuses any other account) · **Branch:** `main`
+> **Last updated:** 2026-10-02 · **by:** NK · **CoCo session:** `42a370d2-a657-4283-8984-94dac6f03a8a`
+> **Plan day:** D15 · **Deployment: one team database `WIND_OPS_AI` on `JKDRJBB-MW27072`** (no personal clones; `just` refuses any other account) · **Branch:** `main`
 > **The app exists:** `WIND_OPS_AI.APP.WOA_COMMAND_CENTER` on `JKDRJBB-MW27072` — Snowsight › Projects › Streamlit
 > **The agent exists:** `WIND_OPS_AI.GEN.WOA_OPS_AGENT` — in Snowflake Intelligence (ai.snowflake.com) for `WOA_RMC`/`WOA_PLANNER`, and as the app's ask box
 
@@ -36,7 +36,7 @@ merge both.
 
 | Owner | Story / test IDs | Branch | Claimed | Notes |
 | --- | --- | --- | --- | --- |
-| JP | Submission surface: README (`T-89`), walkthrough script (`T-90`), as-built criteria map (`T-93`), licences (`T-59`), `execution/01` | `docs/jp/submission-surface` | 2026-09-29 | Team DB redeployed 2026-09-29 (`T-11` freshness had failed); 73/73 |
+| NK | E5 ingenuity: 3 skills (NFR-13), scheduled digest (`T-76`, `T-77`, `Q-78`), `woa-github` MCP (`T-79`), over-claim fixes, README evaluator map | `feat/nk/coco-ingenuity` | 2026-10-02 | PR open; `T-19` teammate skill tests pending (JP) |
 
 ## 3. Next actions, in order
 
@@ -49,10 +49,11 @@ is in the app (NK, #22) and `testing/01` exists (NK, #23); README, walkthrough s
 2. **Record the walkthrough** (`T-90`) from [`walkthrough.md`](docs/08-delivery/walkthrough.md).
 3. **`T-89`** — someone who did not write the README follows it from a clean clone into their own
    account (`WOA_ACCOUNT=<ORG>-<ACCOUNT>`).
-4. **Re-run `just deploy` within 48 h of the demo** — `T-11` freshness fails once the data is 2 days old.
+4. **Re-run `just deploy` within 48 h of the demo.** `T-11` freshness is **failing now** (63 h on 2026-10-02, testing 02). `deploy` now includes `deploy-ops`.
+5. **`T-19`** (JP): run each `skills/*/TEST.md` in a fresh session and fill in its record row.
 
 Then: verified queries for `VQ-1`, `VQ-4`, `VQ-5`, `VQ-7`,
-`VQ-8`; `T-74` incident decision paths; `T-73` free-text constraints; a scheduled task + digest (`T-76`, `T-77`);
+`VQ-8`; `T-74` incident decision paths; `T-73` free-text constraints; `approved_role` records the procedure owner, not the caller (development 14);
 curated layer + one dynamic table (`M12`); widen detector coverage (`I-15`); `just cost` and `just update` are
 still placeholders.
 
@@ -60,7 +61,7 @@ still placeholders.
 
 | ID | Question | Owner | Blocks |
 | --- | --- | --- | --- |
-| `Q-78` | `WOA_SCHEDULER` — which role do automations run as? | NK | D1, `NFR-3` |
+| ~~`Q-78`~~ | **Closed 2026-10-02:** automations run as `WOA_SCHEDULER` by **owning** the task. No user default role is needed | NK | execution 02 |
 | `Q-90` | Which practitioner takes the D2 sanity-check call? | NK | D2, scenario credibility |
 | `Q-6` | Fourth team member — confirmed or not? | NK | capacity (`R-1`) |
 | `Q-84` | The model scores **precision 1.000 / PR-AUC 0.988** on held-out data with no leakage found, so the **generator's damage→feature mapping is too clean** (`ADR-0006` honesty constraint). Raise generator noise, and re-run `T-8` and `T-10` together — they pull in opposite directions | SA | the credibility of the `T-10` claim |
@@ -100,10 +101,10 @@ action*; the RAID log holds the rest.
 | DOCS | `MAINTENANCE_DOCS` stage (SSE, **11 PDFs**) · `DOC_PARSED` (11) · `DOC_CHUNK` (**53 section chunks**) · `DOC_PART_PROCEDURE` (13 parts → procedure) · `SP_PARSE_DOCUMENTS` · **`CSS_MAINTENANCE_DOCS`** (Cortex Search) |
 | GEN | **`WOA_OPS_AGENT`** — Cortex Agent, `claude-sonnet-4-5`, two read-only tools (`fleet_data` → `SV_WIND_OPS`, `maintenance_docs` → `CSS_MAINTENANCE_DOCS`) · **listed in Snowflake Intelligence** (`SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT`); USAGE via `WOA_AGENT`, which `WOA_APP` inherits, so `WOA_RMC`/`WOA_PLANNER` can use it. The app's Alarms and Triage tabs have an ask box (FR-48) |
 | ENGINE | `ENG_INCIDENT` (**15,803**) · `SP_BUILD_INCIDENTS` · `ENG_SUPPRESSED_FAILURE` (**0 rows**) · `ENG_ALARM_FUNNEL` · `ENG_ALARM_FUNNEL_DAILY` · `ENG_ALERT_RANKED` · **`ENG_WINDOW_CANDIDATE`** (1,008 windows, 174 feasible, six constraint columns each) · **`ENG_SUGGESTION`** / **`ENG_SUGGESTION_ITEM`** (1 bundle, 3 single jobs, 1 infeasible) · `ENG_PLAN_IMPACT` · `SP_BUILD_WINDOW_CANDIDATES`, `SP_BUILD_SUGGESTIONS` · *Not yet here — built and verified only on `JKDRJBB-MW27072` `WIND_OPS_AI_DEV_SB` (evidence 12), and live on this account after `just deploy-engine deploy-action deploy-app`:* **`ENG_INCIDENT_EVIDENCE`** (4 rows per incident) · **`ENG_OPERATOR_QUEUE`** |
-| ACTION | `AUD_ACTION` (append-only audit, refusals included) · `ACT_SUPPRESSION` · `ACT_WORK_ORDER_DRAFT` · `ACT_WORK_ORDER` · `ACT_DECISION` · `ACT_V_SUPPRESSION_ACTIVE` · five owner's-rights procedures (`SP_APPROVE_SUPPRESSION`, `SP_REVOKE_SUPPRESSION` → `WOA_RMC`; `SP_DRAFT_WORK_ORDER`, `SP_APPROVE_WORK_ORDER`, `SP_REJECT_WORK_ORDER_DRAFT` → `WOA_PLANNER`). Self-test rows are marked `IS_SELFTEST` and hidden by the app · **`SP_ACCEPT_SUGGESTION`**, **`SP_REJECT_SUGGESTION`** (`WOA_PLANNER`); drafts gain `window_id`, `window_start`, `window_end`, `suggestion_id` |
-| OPS | `DQ_ASSERTION` (**73**) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · seven `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` · `OPS_TEST_HOOK` (`FAIL_AUDIT`, **off**; asserted) |
+| ACTION | `AUD_ACTION` (append-only audit, refusals included) · `ACT_SUPPRESSION` · `ACT_WORK_ORDER_DRAFT` · `ACT_WORK_ORDER` · `ACT_DECISION` · `ACT_V_SUPPRESSION_ACTIVE` · six owner's-rights procedures (`SP_GET_WORK_ORDER` read-only → `WOA_PLANNER`, for the MCP connector; `SP_APPROVE_SUPPRESSION`, `SP_REVOKE_SUPPRESSION` → `WOA_RMC`; `SP_DRAFT_WORK_ORDER`, `SP_APPROVE_WORK_ORDER`, `SP_REJECT_WORK_ORDER_DRAFT` → `WOA_PLANNER`). Self-test rows are marked `IS_SELFTEST` and hidden by the app · **`SP_ACCEPT_SUGGESTION`**, **`SP_REJECT_SUGGESTION`** (`WOA_PLANNER`); drafts gain `window_id`, `window_start`, `window_end`, `suggestion_id` |
+| OPS | **`T_DAILY_DIGEST`** (task, 05:30 IST, owner `WOA_SCHEDULER`, started) · **`OPS_DIGEST`** · `SP_BUILD_DIGEST` · `DQ_ASSERTION` (**77**, 33 gating) · `DQ_RESULT` · `ML_RUN` · `ML_METRIC` · eight `SP_RUN_*_QUALITY` · `SP_ASSERT_QUALITY_GATE` · `OPS_TEST_HOOK` (`FAIL_AUDIT`, **off**; asserted) |
 | APP | **`WOA_COMMAND_CENTER`** — Streamlit, **warehouse runtime** `SYSTEM$WAREHOUSE_RUNTIME`, Streamlit 1.52.2 from the Anaconda channel, warehouse `WOA_APP_WH`, source on `APP.WOA_APP_STAGE`. 5 tabs; writes via the ACTION procedures only |
-| **Not yet built** | window engine (`ENG_WINDOW_CANDIDATE`) · verified queries · dynamic tables · notification integration · scheduled task · the app's *Ask* tab |
+| **Not yet built** | verified queries · dynamic tables · streams · notification integration · CoCo agent-task automation (no `cortex` CLI here) |
 | Proven possible here | `CREATE SEMANTIC VIEW` · `CREATE CORTEX SEARCH SERVICE` · `CREATE AGENT` + `DATA_AGENT_RUN` · `AI_PARSE_DOCUMENT` (LAYOUT, SSE stage) · `CREATE STREAMLIT` (warehouse runtime; container runtime creates but **cannot boot** without egress) · `ANOMALY_DETECTION` multi-series + `DETECT_ANOMALIES` · `ML.CLASSIFICATION` `PREDICT` · compute pools · `CREATE SERVICE` · models `claude-sonnet-4-5`, `llama3.1-8b` |
 | Proven NOT possible | `CREATE APPLICATION SERVICE` (trial account, `ADR-0020`) · **`CREATE EXTERNAL ACCESS INTEGRATION`** (trial account) — so no PyPI, no MCP egress, no outbound calls from the app · `!SHOW_FEATURE_IMPORTANCE()` on the classifier (`I-8`) · legacy model names `claude-4-sonnet`, `mistral-large2`, `openai-gpt-4.1` |
 | Still unproven | `CREATE DYNAMIC TABLE` — verified during planning on this same account, not re-probed since |
@@ -192,15 +193,13 @@ ADR or RAID reference, that is a defect.
 
 ## 8. Latest evidence entry
 
-[`docs/06-coco/evidence/execution/01-full-deploy-and-submission-surface.md`](docs/06-coco/evidence/execution/01-full-deploy-and-submission-surface.md)
-— `T-11` freshness failed on the team database; one `just deploy` (27 min) regenerated, retrained and
-rebuilt it, 73/73. Plus the judge-facing README, walkthrough script and as-built `T-93` map.
+[`docs/06-coco/evidence/development/13-reusable-skills.md`](docs/06-coco/evidence/development/13-reusable-skills.md),
+[`development/14-github-mcp.md`](docs/06-coco/evidence/development/14-github-mcp.md),
+[`execution/02-scheduled-digest.md`](docs/06-coco/evidence/execution/02-scheduled-digest.md) and
+[`testing/02-reverify-after-ingenuity.md`](docs/06-coco/evidence/testing/02-reverify-after-ingenuity.md).
+This session delivered three published skills, the daily digest task running as `WOA_SCHEDULER`
+(4 new gates pass), and the `woa-github` MCP connector, which filed issue #27 from approved work order
+`dd77c8bc`. E5 over-claims were corrected. Every gate suite passes except `T-11` freshness.
 
-Before that: [`development/12-incident-evidence.md`](docs/06-coco/evidence/development/12-incident-evidence.md)
-— ADR-0017's four evidence channels stored per incident (63,748 rows = 15,937 × 4), a single operator
-queue with `UNDETERMINED` ranked below actionable and never truncated silently, and `I-19` closed (2
-nuisance calls on a HIGH-risk turbine are now `UNDETERMINED`). `T-68` and `T-61` gating, every new
-check mutation-tested. `verify` is 72/72 on `JKDRJBB-MW27072`.
-
-Previous: [`development/11-window-engine.md`](docs/06-coco/evidence/development/11-window-engine.md).
-Next entry goes in `docs/06-coco/evidence/development/13-<slug>.md`.
+Previous: [`execution/01-full-deploy-and-submission-surface.md`](docs/06-coco/evidence/execution/01-full-deploy-and-submission-surface.md).
+Next entry goes in `docs/06-coco/evidence/<phase>/<NN>-<slug>.md`, after the highest number in that phase.
