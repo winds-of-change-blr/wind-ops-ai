@@ -181,8 +181,11 @@ begin
            || ' (same key) / ' || coalesce(:r3:outcome::varchar, 'null') || ' (new key); work orders: ' || :n;
 
     -- T-35: force the audit to fail on an approval; nothing may be written.
+    -- Prefer the second elevated component; an account with only one reuses the first
+    -- (its T-34 draft is approved by now, so it is no longer an open draft).
     select component_id into :comp2 from ENGINE.ENG_ALERT_RANKED where risk_band in ('HIGH', 'MEDIUM')
-     order by money_rank limit 1 offset 1;
+     order by iff(money_rank = (select min(money_rank) from ENGINE.ENG_ALERT_RANKED
+                                where risk_band in ('HIGH', 'MEDIUM')), 1, 0), money_rank limit 1;
     call ACTION.SP_DRAFT_WORK_ORDER(:comp2, :k || 'draft2', 'verify') into :r;
     d2 := r:draft_id::varchar;
     update OPS.OPS_TEST_HOOK set enabled = true, set_at = current_timestamp()::timestamp_ntz where hook = 'FAIL_AUDIT';
